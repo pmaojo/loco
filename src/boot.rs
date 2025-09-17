@@ -33,6 +33,11 @@ use crate::{
     task::{self, Tasks},
     Result,
 };
+#[cfg(debug_assertions)]
+use crate::{
+    cli::CliScaffoldGenerator,
+    introspection::graph::mutation::{GraphMutationService, ScaffoldGenerator},
+};
 
 /// Represents the application startup mode.
 #[derive(Debug)]
@@ -513,6 +518,13 @@ async fn setup_routes<H: Hooks>(
         H::app_name(),
         route_descriptors,
     ));
+    #[cfg(debug_assertions)]
+    {
+        let generator: Arc<dyn ScaffoldGenerator> = Arc::new(CliScaffoldGenerator::default());
+        app_context
+            .shared_store
+            .insert(GraphMutationService::new(H::app_name(), generator));
+    }
 
     let app = routes_definition.to_router::<H>(app_context.clone(), app)?;
     let mut router = H::after_routes(app, app_context).await?;

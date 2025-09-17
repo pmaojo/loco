@@ -3,9 +3,15 @@
 //! application and its dependencies.
 
 use super::{format, routes::Routes};
+
+#[cfg(debug_assertions)]
+use crate::introspection::graph::mutation::{
+    GraphMutationService, NodeCreationRequest, ScaffoldGenerator,
+
 #[cfg(feature = "introspection_assistant")]
 use crate::introspection::assistant::{
     self, IntrospectionAssistant, RuleBasedAssistantClient, SharedStoreConversationStore,
+
 };
 use crate::{
     app::AppContext,
@@ -15,11 +21,15 @@ use crate::{
     Result,
 };
 use axum::{extract::State, response::Response, routing::get};
+#[cfg(debug_assertions)]
+use axum::{routing::post, Json};
 #[cfg(feature = "introspection_assistant")]
 use axum::{routing::post, Json};
 #[cfg(feature = "introspection_assistant")]
 use serde::Deserialize;
 use serde::Serialize;
+#[cfg(debug_assertions)]
+use std::sync::Arc;
 
 /// Represents the health status of the application.
 #[derive(Serialize)]
@@ -101,6 +111,18 @@ pub async fn graph(State(ctx): State<AppContext>) -> Result<Response> {
     format::json(snapshot)
 }
 
+#[cfg(debug_assertions)]
+pub async fn create_graph_node(
+    State(ctx): State<AppContext>,
+    Json(request): Json<NodeCreationRequest>,
+) -> Result<Response> {
+    let service = ctx
+        .shared_store
+        .get_ref::<GraphMutationService<Arc<dyn ScaffoldGenerator>>>()
+        .ok_or_else(|| Error::Message("scaffold generator unavailable".to_string()))?;
+    let generation = service.create_node(request)?;
+    format::json(generation)
+
 #[cfg(feature = "introspection_assistant")]
 #[derive(Deserialize)]
 pub struct AssistantRequestBody {
@@ -140,11 +162,18 @@ pub async fn assistant(
 
 /// Defines and returns the readiness-related routes.
 pub fn routes() -> Routes {
+    let mut routes = Routes::new()
     let routes = Routes::new()
         .add("/_readiness", get(readiness))
         .add("/_ping", get(ping))
         .add("/_health", get(health))
         .add("/__loco/graph", get(graph));
+
+    #[cfg(debug_assertions)]
+    {
+        routes = routes.add("/__loco/graph/nodes", post(create_graph_node));
+    }
+
     #[cfg(feature = "introspection_assistant")]
     let routes = routes.add("/__loco/assistant", post(assistant));
     routes
