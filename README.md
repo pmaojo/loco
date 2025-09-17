@@ -82,7 +82,7 @@ Next step, build your frontend:
 ```
 <!-- </snip> -->
 
- Now `cd` into your `myapp` and start your app:
+Now `cd` into your `myapp` and start your app:
 <!-- <snip id="starting-the-server-command-with-output" inject_from="yaml" template="sh"> -->
 ```sh
 $ cargo loco start
@@ -106,6 +106,39 @@ $ cargo loco start
 listening on port 5150
 ```
 <!-- </snip> -->
+
+## Graph GUI
+
+The repository ships with a standalone frontend that visualises the `/__loco/graph` introspection endpoint and
+provides an interface for requesting AI remediation tips.
+
+### Install & run locally
+
+```sh
+cd graph-gui
+npm install
+# install Playwright browsers once per machine
+npx playwright install --with-deps
+npm run dev
+```
+
+The development server starts on <http://127.0.0.1:4173>. It expects the Loco application (or a mocked server)
+to expose the `/__loco/graph` and `/__loco/assistant` endpoints.
+
+### Build for production
+
+```sh
+npm run build
+```
+
+### End-to-end smoke tests
+
+```sh
+npm run test:e2e
+```
+
+The Playwright tests stub backend responses, assert that the graph is rendered, and validate the AI call flow
+without requiring a running Loco backend.
 
 ## Powered by Loco
 + [SpectralOps](https://spectralops.io) - various services powered by Loco

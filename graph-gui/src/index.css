@@ -1,0 +1,23 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  @apply antialiased;
+}
+
+.graph-container {
+  @apply bg-slate-900 rounded-xl shadow-xl border border-slate-800;
+}
+
+.graph-node {
+  @apply transition-colors duration-200 ease-out;
+}
+
+.graph-node:hover {
+  @apply cursor-pointer brightness-110;
+}

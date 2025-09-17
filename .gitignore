@@ -66,5 +66,12 @@ starters/saas/frontend/package-lock.json
 starters/saas/frontend/yarn.lock
 starters/saas/frontend/pnpm-lock.yaml
 
+# Graph GUI build artefacts
+graph-gui/node_modules
+graph-gui/dist
+graph-gui/playwright-report
+graph-gui/test-results
+graph-gui/*.tsbuildinfo
+
 
 example
