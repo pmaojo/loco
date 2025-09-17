@@ -28,6 +28,11 @@ use std::{collections::BTreeMap, path::PathBuf};
 use crate::bgworker::JobStatus;
 #[cfg(debug_assertions)]
 use crate::controller;
+#[cfg(feature = "introspection_assistant")]
+use crate::introspection::assistant::{
+    findings_from_checks, IntrospectionAssistant, RuleBasedAssistantClient,
+    SharedStoreConversationStore,
+};
 use crate::{
     app::{AppContext, Hooks},
     boot::{
@@ -152,6 +157,10 @@ enum Commands {
         /// Output the application graph snapshot as JSON.
         #[arg(long, action, conflicts_with_all = ["config", "production"])]
         graph: bool,
+        #[cfg(feature = "introspection_assistant")]
+        /// Request suggestions from the introspection assistant.
+        #[arg(long, action, conflicts_with = "graph")]
+        assistant: bool,
     },
     /// Display the app version
     Version {},
@@ -811,6 +820,8 @@ pub async fn main<H: Hooks, M: MigratorTrait>() -> crate::Result<()> {
             config: config_arg,
             production,
             graph,
+            #[cfg(feature = "introspection_assistant")]
+            assistant,
         } => {
             if graph {
                 let routes = list_endpoints::<H>(&app_context);
@@ -827,12 +838,49 @@ pub async fn main<H: Hooks, M: MigratorTrait>() -> crate::Result<()> {
                 println!("{}", &app_context.config);
                 println!("Environment: {}", &environment);
             } else {
+                let checks = doctor::run_all::<H>(&app_context, production).await?;
                 let mut should_exit = false;
-                for (_, check) in doctor::run_all::<H>(&app_context, production).await? {
+                for (_, check) in &checks {
                     if !should_exit && !check.valid() {
                         should_exit = true;
                     }
                     println!("{check}");
+                }
+                #[cfg(feature = "introspection_assistant")]
+                if assistant {
+                    let findings = findings_from_checks(&checks);
+                    let routes = list_endpoints::<H>(&app_context);
+                    let route_descriptors =
+                        ApplicationGraphService::collect_route_descriptors(&routes);
+                    let graph_service = ApplicationGraphService::from_route_descriptors(
+                        H::app_name(),
+                        route_descriptors,
+                        &app_context,
+                    );
+                    let conversation_store =
+                        SharedStoreConversationStore::new(app_context.shared_store.clone());
+                    let client = RuleBasedAssistantClient::default();
+                    let assistant_adapter = IntrospectionAssistant::new(
+                        H::app_name(),
+                        &graph_service,
+                        &client,
+                        &conversation_store,
+                    );
+
+                    match assistant_adapter.advise(&findings).await {
+                        Ok(advice) => {
+                            println!("\nAssistant: {}", advice.response);
+                            for suggestion in &advice.suggestions {
+                                println!("- [{}] {}", suggestion.node_id, suggestion.summary);
+                                if let Some(rationale) = &suggestion.rationale {
+                                    println!("    {rationale}");
+                                }
+                            }
+                        }
+                        Err(error) => {
+                            println!("\nAssistant unavailable: {error}");
+                        }
+                    }
                 }
                 if should_exit {
                     exit(1);
@@ -960,6 +1008,8 @@ pub async fn main<H: Hooks>() -> crate::Result<()> {
             config: config_arg,
             production,
             graph,
+            #[cfg(feature = "introspection_assistant")]
+            assistant,
         } => {
             if graph {
                 let routes = list_endpoints::<H>(&app_context);
@@ -976,12 +1026,49 @@ pub async fn main<H: Hooks>() -> crate::Result<()> {
                 println!("{}", &app_context.config);
                 println!("Environment: {}", &environment);
             } else {
+                let checks = doctor::run_all::<H>(&app_context, production).await?;
                 let mut should_exit = false;
-                for (_, check) in doctor::run_all::<H>(&app_context, production).await? {
+                for (_, check) in &checks {
                     if !should_exit && !check.valid() {
                         should_exit = true;
                     }
                     println!("{check}");
+                }
+                #[cfg(feature = "introspection_assistant")]
+                if assistant {
+                    let findings = findings_from_checks(&checks);
+                    let routes = list_endpoints::<H>(&app_context);
+                    let route_descriptors =
+                        ApplicationGraphService::collect_route_descriptors(&routes);
+                    let graph_service = ApplicationGraphService::from_route_descriptors(
+                        H::app_name(),
+                        route_descriptors,
+                        &app_context,
+                    );
+                    let conversation_store =
+                        SharedStoreConversationStore::new(app_context.shared_store.clone());
+                    let client = RuleBasedAssistantClient::default();
+                    let assistant_adapter = IntrospectionAssistant::new(
+                        H::app_name(),
+                        &graph_service,
+                        &client,
+                        &conversation_store,
+                    );
+
+                    match assistant_adapter.advise(&findings).await {
+                        Ok(advice) => {
+                            println!("\nAssistant: {}", advice.response);
+                            for suggestion in &advice.suggestions {
+                                println!("- [{}] {}", suggestion.node_id, suggestion.summary);
+                                if let Some(rationale) = &suggestion.rationale {
+                                    println!("    {rationale}");
+                                }
+                            }
+                        }
+                        Err(error) => {
+                            println!("\nAssistant unavailable: {error}");
+                        }
+                    }
                 }
                 if should_exit {
                     exit(1);
