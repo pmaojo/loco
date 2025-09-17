@@ -3,6 +3,10 @@
 //! application and its dependencies.
 
 use super::{format, routes::Routes};
+#[cfg(feature = "introspection_assistant")]
+use crate::introspection::assistant::{
+    self, IntrospectionAssistant, RuleBasedAssistantClient, SharedStoreConversationStore,
+};
 use crate::{
     app::AppContext,
     config,
@@ -11,6 +15,10 @@ use crate::{
     Result,
 };
 use axum::{extract::State, response::Response, routing::get};
+#[cfg(feature = "introspection_assistant")]
+use axum::{routing::post, Json};
+#[cfg(feature = "introspection_assistant")]
+use serde::Deserialize;
 use serde::Serialize;
 
 /// Represents the health status of the application.
@@ -93,17 +101,58 @@ pub async fn graph(State(ctx): State<AppContext>) -> Result<Response> {
     format::json(snapshot)
 }
 
+#[cfg(feature = "introspection_assistant")]
+#[derive(Deserialize)]
+pub struct AssistantRequestBody {
+    #[serde(default)]
+    pub doctor_findings: Vec<assistant::DoctorFinding>,
+}
+
+#[cfg(feature = "introspection_assistant")]
+pub async fn assistant(
+    State(ctx): State<AppContext>,
+    Json(payload): Json<AssistantRequestBody>,
+) -> Result<Response> {
+    let conversation_store = SharedStoreConversationStore::new(ctx.shared_store.clone());
+    let client = RuleBasedAssistantClient::default();
+    let advice = {
+        let seed = ctx
+            .shared_store
+            .get_ref::<GraphIntrospectionSeed>()
+            .ok_or_else(|| Error::Message("application graph metadata unavailable".to_string()))?;
+        let app_name = seed.app_name.clone();
+        let graph_service = seed.into_service(&ctx);
+        let adapter = IntrospectionAssistant::new(
+            app_name.as_str(),
+            &graph_service,
+            &client,
+            &conversation_store,
+        );
+
+        adapter
+            .advise(&payload.doctor_findings)
+            .await
+            .map_err(|error| Error::Message(error.to_string()))?
+    };
+
+    format::json(advice)
+}
+
 /// Defines and returns the readiness-related routes.
 pub fn routes() -> Routes {
-    Routes::new()
+    let routes = Routes::new()
         .add("/_readiness", get(readiness))
         .add("/_ping", get(ping))
         .add("/_health", get(health))
-        .add("/__loco/graph", get(graph))
+        .add("/__loco/graph", get(graph));
+    #[cfg(feature = "introspection_assistant")]
+    let routes = routes.add("/__loco/assistant", post(assistant));
+    routes
 }
 
 #[cfg(test)]
 mod tests {
+    #[cfg(feature = "cache_redis")]
     use crate::tests_cfg::redis::setup_redis_container;
     use axum::routing::get;
     use loco_rs::tests_cfg::db::fail_connection;
