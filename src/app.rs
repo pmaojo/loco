@@ -14,6 +14,7 @@ use axum::Router as AxumRouter;
 use dashmap::DashMap;
 
 use crate::{
+    ai::KnowledgeAssistant,
     bgworker::{self, Queue},
     boot::{shutdown_signal, BootResult, ServeParams, StartMode},
     cache::{self},
@@ -272,6 +273,8 @@ pub struct AppContext {
     pub shared_store: Arc<SharedStore>,
     /// Ontology access layer exposing repository and reasoner adapters.
     pub ontology: Arc<OntologyService>,
+    /// Optional knowledge assistant synthesizing responses.
+    pub knowledge_assistant: Option<Arc<dyn KnowledgeAssistant>>,
 }
 
 /// A trait that defines hooks for customizing and extending the behavior of a

@@ -61,6 +61,7 @@ pub fn test_config() -> Config {
         cache: config::CacheConfig::Null,
         ontology: config::OntologySettings::default(),
         reasoner: config::ReasonerSettings::default(),
+        ai: config::AiSettings::default(),
     }
 }
 

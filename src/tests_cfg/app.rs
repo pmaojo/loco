@@ -35,5 +35,6 @@ pub async fn get_app_context() -> AppContext {
         cache: cache.into(),
         shared_store: std::sync::Arc::new(SharedStore::default()),
         ontology,
+        knowledge_assistant: None,
     }
 }

@@ -4,6 +4,7 @@
 
 pub use self::errors::Error;
 
+pub mod ai;
 mod banner;
 pub mod bgworker;
 mod depcheck;
