@@ -24,6 +24,7 @@ use crate::{
     env_vars,
     environment::Environment,
     errors::Error,
+    introspection::graph::service::{ApplicationGraphService, GraphIntrospectionSeed},
     mailer::{EmailSender, MailerWorker},
     prelude::BackgroundWorker,
     scheduler::{self, Scheduler},
@@ -498,7 +499,15 @@ async fn setup_routes<H: Hooks>(
     initializers: &[Box<dyn Initializer>],
 ) -> Result<Router> {
     let app = H::before_routes(app_context).await?;
-    let app = H::routes(app_context).to_router::<H>(app_context.clone(), app)?;
+    let routes_definition = H::routes(app_context);
+    let collected_routes = routes_definition.collect();
+    let route_descriptors = ApplicationGraphService::collect_route_descriptors(&collected_routes);
+    app_context.shared_store.insert(GraphIntrospectionSeed::new(
+        H::app_name(),
+        route_descriptors,
+    ));
+
+    let app = routes_definition.to_router::<H>(app_context.clone(), app)?;
     let mut router = H::after_routes(app, app_context).await?;
 
     for initializer in initializers {

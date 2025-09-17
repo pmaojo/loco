@@ -37,6 +37,7 @@ use crate::{
     config::Config,
     doctor,
     environment::{resolve_from_env, Environment, DEFAULT_ENVIRONMENT},
+    introspection::graph::service::{ApplicationGraphService, GraphQueryService},
     logger, task, Error,
 };
 
@@ -148,6 +149,9 @@ enum Commands {
         config: bool,
         #[arg(short, long, action)]
         production: bool,
+        /// Output the application graph snapshot as JSON.
+        #[arg(long, action, conflicts_with_all = ["config", "production"])]
+        graph: bool,
     },
     /// Display the app version
     Version {},
@@ -806,8 +810,20 @@ pub async fn main<H: Hooks, M: MigratorTrait>() -> crate::Result<()> {
         Commands::Doctor {
             config: config_arg,
             production,
+            graph,
         } => {
-            if config_arg {
+            if graph {
+                let routes = list_endpoints::<H>(&app_context);
+                let route_descriptors = ApplicationGraphService::collect_route_descriptors(&routes);
+                let snapshot = ApplicationGraphService::from_route_descriptors(
+                    H::app_name(),
+                    route_descriptors,
+                    &app_context,
+                )
+                .snapshot();
+
+                println!("{}", serde_json::to_string_pretty(&snapshot)?);
+            } else if config_arg {
                 println!("{}", &app_context.config);
                 println!("Environment: {}", &environment);
             } else {
@@ -943,8 +959,20 @@ pub async fn main<H: Hooks>() -> crate::Result<()> {
         Commands::Doctor {
             config: config_arg,
             production,
+            graph,
         } => {
-            if config_arg {
+            if graph {
+                let routes = list_endpoints::<H>(&app_context);
+                let route_descriptors = ApplicationGraphService::collect_route_descriptors(&routes);
+                let snapshot = ApplicationGraphService::from_route_descriptors(
+                    H::app_name(),
+                    route_descriptors,
+                    &app_context,
+                )
+                .snapshot();
+
+                println!("{}", serde_json::to_string_pretty(&snapshot)?);
+            } else if config_arg {
                 println!("{}", &app_context.config);
                 println!("Environment: {}", &environment);
             } else {

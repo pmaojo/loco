@@ -1,0 +1,51 @@
+---
+source: tests/controller/graph.rs
+expression: "serde_json::to_string_pretty(&cli_value).expect(\"serialize graph snapshot\")"
+---
+{
+  "dependencies": {
+    "background_workers": [],
+    "scheduler_jobs": [
+      {
+        "command": "echo loco",
+        "name": "job 1",
+        "run_on_start": false,
+        "schedule": "*/5 * * * * *",
+        "shell": true,
+        "tags": [
+          "base"
+        ]
+      }
+    ],
+    "tasks": []
+  },
+  "health": {
+    "ok": true
+  },
+  "routes": [
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/__loco/graph"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/_health"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/_ping"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/_readiness"
+    }
+  ]
+}
