@@ -18,8 +18,7 @@ async fn graph_endpoint_matches_cli_snapshot() {
     let ctx = tests_cfg::app::get_app_context().await;
     let app_routes = tests_cfg::db::AppHook::routes(&ctx);
     let collected_routes = app_routes.collect();
-    let route_descriptors =
-        ApplicationGraphService::collect_route_descriptors(&collected_routes);
+    let route_descriptors = ApplicationGraphService::collect_route_descriptors(&collected_routes);
     ctx.shared_store.insert(GraphIntrospectionSeed::new(
         tests_cfg::db::AppHook::app_name(),
         route_descriptors,

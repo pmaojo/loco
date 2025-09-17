@@ -3,6 +3,10 @@
 //! application and its dependencies.
 
 use super::{format, routes::Routes};
+#[cfg(debug_assertions)]
+use crate::introspection::graph::mutation::{
+    GraphMutationService, NodeCreationRequest, ScaffoldGenerator,
+};
 use crate::{
     app::AppContext,
     config,
@@ -11,7 +15,11 @@ use crate::{
     Result,
 };
 use axum::{extract::State, response::Response, routing::get};
+#[cfg(debug_assertions)]
+use axum::{routing::post, Json};
 use serde::Serialize;
+#[cfg(debug_assertions)]
+use std::sync::Arc;
 
 /// Represents the health status of the application.
 #[derive(Serialize)]
@@ -93,13 +101,33 @@ pub async fn graph(State(ctx): State<AppContext>) -> Result<Response> {
     format::json(snapshot)
 }
 
+#[cfg(debug_assertions)]
+pub async fn create_graph_node(
+    State(ctx): State<AppContext>,
+    Json(request): Json<NodeCreationRequest>,
+) -> Result<Response> {
+    let service = ctx
+        .shared_store
+        .get_ref::<GraphMutationService<Arc<dyn ScaffoldGenerator>>>()
+        .ok_or_else(|| Error::Message("scaffold generator unavailable".to_string()))?;
+    let generation = service.create_node(request)?;
+    format::json(generation)
+}
+
 /// Defines and returns the readiness-related routes.
 pub fn routes() -> Routes {
-    Routes::new()
+    let mut routes = Routes::new()
         .add("/_readiness", get(readiness))
         .add("/_ping", get(ping))
         .add("/_health", get(health))
-        .add("/__loco/graph", get(graph))
+        .add("/__loco/graph", get(graph));
+
+    #[cfg(debug_assertions)]
+    {
+        routes = routes.add("/__loco/graph/nodes", post(create_graph_node));
+    }
+
+    routes
 }
 
 #[cfg(test)]

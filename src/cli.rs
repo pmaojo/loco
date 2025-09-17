@@ -28,6 +28,11 @@ use std::{collections::BTreeMap, path::PathBuf};
 use crate::bgworker::JobStatus;
 #[cfg(debug_assertions)]
 use crate::controller;
+#[cfg(debug_assertions)]
+use crate::introspection::graph::mutation::{
+    FieldDefinition, GraphMutationService, NodeComponent, NodeCreationCommand, NodeCreationRequest,
+    NodePresentation, ScaffoldGeneration, ScaffoldGenerator,
+};
 use crate::{
     app::{AppContext, Hooks},
     boot::{
@@ -377,105 +382,6 @@ After running the migration, follow these steps to complete the process:
         #[arg(long, action)]
         info: bool,
     },
-}
-
-#[cfg(debug_assertions)]
-impl ComponentArg {
-    fn into_gen_component(self, config: &Config) -> crate::Result<loco_gen::Component> {
-        match self {
-            #[cfg(feature = "with-db")]
-            Self::Model {
-                name,
-                without_tz,
-                fields,
-            } => Ok(loco_gen::Component::Model {
-                name,
-                with_tz: !without_tz,
-                fields,
-            }),
-            #[cfg(feature = "with-db")]
-            Self::Migration {
-                name,
-                without_tz,
-                fields,
-            } => Ok(loco_gen::Component::Migration {
-                name,
-                with_tz: !without_tz,
-                fields,
-            }),
-            #[cfg(feature = "with-db")]
-            Self::Scaffold {
-                name,
-                without_tz,
-                fields,
-                kind,
-                htmx,
-                html,
-                api,
-            } => {
-                let kind = if let Some(kind) = kind {
-                    kind
-                } else if htmx {
-                    loco_gen::ScaffoldKind::Htmx
-                } else if html {
-                    loco_gen::ScaffoldKind::Html
-                } else if api {
-                    loco_gen::ScaffoldKind::Api
-                } else {
-                    return Err(crate::Error::string(
-                        "Error: generating this component requires one of `--kind`, `--htmx`, `--html`, or `--api` to be specified. Run with `--help` for more information.",
-                    ));
-                };
-
-                Ok(loco_gen::Component::Scaffold {
-                    name,
-                    with_tz: !without_tz,
-                    fields,
-                    kind,
-                })
-            }
-            Self::Controller {
-                name,
-                actions,
-                kind,
-                htmx,
-                html,
-                api,
-            } => {
-                let kind = if let Some(kind) = kind {
-                    kind
-                } else if htmx {
-                    loco_gen::ScaffoldKind::Htmx
-                } else if html {
-                    loco_gen::ScaffoldKind::Html
-                } else if api {
-                    loco_gen::ScaffoldKind::Api
-                } else {
-                    return Err(crate::Error::string(
-                        "Error: One of `kind`, `htmx`, `html`, or `api` must be specified.",
-                    ));
-                };
-
-                Ok(loco_gen::Component::Controller {
-                    name,
-                    actions,
-                    kind,
-                })
-            }
-            Self::Task { name } => Ok(loco_gen::Component::Task { name }),
-            Self::Scheduler {} => Ok(loco_gen::Component::Scheduler {}),
-            Self::Worker { name } => Ok(loco_gen::Component::Worker { name }),
-            Self::Mailer { name } => Ok(loco_gen::Component::Mailer { name }),
-            Self::Data { name } => Ok(loco_gen::Component::Data { name }),
-            Self::Deployment { kind } => Ok(kind.to_generator_component(config)),
-            Self::Override {
-                template_path: _,
-                info: _,
-            } => Err(crate::Error::string(
-                "Error: Override could not be generated.",
-            )),
-        }
-    }
 }
 
 #[derive(Subcommand)]
@@ -1306,57 +1212,367 @@ fn handle_generate_command<H: Hooks>(
     component: ComponentArg,
     config: &Config,
 ) -> crate::Result<()> {
+    handle_generate_command_with_generator::<H, _>(
+        component,
+        config,
+        CliScaffoldGenerator::default(),
+    )
+}
+
+#[cfg(debug_assertions)]
+fn handle_generate_command_with_generator<H: Hooks, G: ScaffoldGenerator>(
+    component: ComponentArg,
+    config: &Config,
+    generator: G,
+) -> crate::Result<()> {
     use std::path::Path;
-    if let ComponentArg::Override {
-        template_path,
-        info,
-    } = component
-    {
-        match (template_path, info) {
-            // If no template path is provided, display the available templates,
-            // ignoring the `--info` flag.
-            (None, true | false) => {
-                let templates = loco_gen::template::collect();
-                println!("{}", format_templates_as_tree(templates));
-            }
-            // If a template path is provided and `--info` is enabled,
-            // display the templates from the specified path.
-            (Some(path), true) => {
-                let templates = loco_gen::template::collect_files_path(Path::new(&path)).unwrap();
-                println!("{}", format_templates_as_tree(templates));
-            }
-            // If a template path is provided and `--info` is disabled,
-            // copy the template to the default local template path.
-            (Some(path), false) => {
-                let copied_files = loco_gen::copy_template(
-                    Path::new(&path),
-                    Path::new(loco_gen::template::DEFAULT_LOCAL_TEMPLATE),
-                )?;
-                if copied_files.is_empty() {
-                    println!("{}", "No templates were found to copy.".red());
-                } else {
-                    println!(
-                        "{}",
-                        "The following templates were successfully copied:".green()
-                    );
-                    for f in copied_files {
-                        println!(" * {}", f.display());
+    match component {
+        ComponentArg::Override {
+            template_path,
+            info,
+        } => {
+            match (template_path, info) {
+                (None, true | false) => {
+                    let templates = loco_gen::template::collect();
+                    println!("{}", format_templates_as_tree(templates));
+                }
+                (Some(path), true) => {
+                    let templates =
+                        loco_gen::template::collect_files_path(Path::new(&path)).unwrap();
+                    println!("{}", format_templates_as_tree(templates));
+                }
+                (Some(path), false) => {
+                    let copied_files = loco_gen::copy_template(
+                        Path::new(&path),
+                        Path::new(loco_gen::template::DEFAULT_LOCAL_TEMPLATE),
+                    )?;
+                    if copied_files.is_empty() {
+                        println!("{}", "No templates were found to copy.".red());
+                    } else {
+                        println!(
+                            "{}",
+                            "The following templates were successfully copied:".green()
+                        );
+                        for f in copied_files {
+                            println!(" * {}", f.display());
+                        }
                     }
                 }
             }
+            Ok(())
         }
+        ComponentArg::Deployment { kind } => {
+            let component = kind.to_generator_component(config);
+            let get_result = loco_gen::generate(
+                &loco_gen::new_generator(),
+                component,
+                &loco_gen::AppInfo {
+                    app_name: H::app_name().to_string(),
+                },
+            )?;
+            let messages = loco_gen::collect_messages(&get_result);
+            println!("{messages}");
+            Ok(())
+        }
+        other => dispatch_generation::<H, G>(other, generator),
+    }
+}
+
+#[cfg(debug_assertions)]
+fn dispatch_generation<H: Hooks, G: ScaffoldGenerator>(
+    component: ComponentArg,
+    generator: G,
+) -> crate::Result<()> {
+    match (component, generator) {
+        #[cfg(feature = "with-db")]
+        (
+            ComponentArg::Model {
+                name,
+                without_tz,
+                fields,
+            },
+            generator,
+        ) => {
+            let request = NodeCreationRequest::Model {
+                name,
+                with_timestamps: Some(!without_tz),
+                fields: convert_fields(fields),
+            };
+            run_generation::<H, _>(generator, request)
+        }
+        #[cfg(feature = "with-db")]
+        (
+            ComponentArg::Migration {
+                name,
+                without_tz,
+                fields,
+            },
+            generator,
+        ) => {
+            let request = NodeCreationRequest::Migration {
+                name,
+                with_timestamps: Some(!without_tz),
+                fields: convert_fields(fields),
+            };
+            run_generation::<H, _>(generator, request)
+        }
+        #[cfg(feature = "with-db")]
+        (
+            ComponentArg::Scaffold {
+                name,
+                without_tz,
+                fields,
+                kind,
+                htmx,
+                html,
+                api,
+            },
+            generator,
+        ) => {
+            let interface = resolve_presentation(kind, htmx, html, api, true)?;
+            let request = NodeCreationRequest::Scaffold {
+                name,
+                with_timestamps: Some(!without_tz),
+                fields: convert_fields(fields),
+                interface,
+            };
+            run_generation::<H, _>(generator, request)
+        }
+        (
+            ComponentArg::Controller {
+                name,
+                actions,
+                kind,
+                htmx,
+                html,
+                api,
+            },
+            generator,
+        ) => {
+            let interface = resolve_presentation(kind, htmx, html, api, false)?;
+            let request = NodeCreationRequest::Controller {
+                name,
+                actions,
+                interface,
+            };
+            run_generation::<H, _>(generator, request)
+        }
+        (ComponentArg::Task { name }, generator) => {
+            let request = NodeCreationRequest::Task { name };
+            run_generation::<H, _>(generator, request)
+        }
+        (ComponentArg::Scheduler {}, generator) => {
+            let request = NodeCreationRequest::Scheduler {};
+            run_generation::<H, _>(generator, request)
+        }
+        (ComponentArg::Worker { name }, generator) => {
+            let request = NodeCreationRequest::Worker { name };
+            run_generation::<H, _>(generator, request)
+        }
+        (ComponentArg::Mailer { name }, generator) => {
+            let request = NodeCreationRequest::Mailer { name };
+            run_generation::<H, _>(generator, request)
+        }
+        (ComponentArg::Data { name }, generator) => {
+            let request = NodeCreationRequest::Data { name };
+            run_generation::<H, _>(generator, request)
+        }
+        (ComponentArg::Override { .. }, _) | (ComponentArg::Deployment { .. }, _) => {
+            unreachable!("handled earlier")
+        }
+    }
+}
+
+#[cfg(debug_assertions)]
+fn run_generation<H: Hooks, G: ScaffoldGenerator>(
+    generator: G,
+    request: NodeCreationRequest,
+) -> crate::Result<()> {
+    let service = GraphMutationService::new(H::app_name(), generator);
+    let generation = service.create_node(request)?;
+    println!("{}", generation.message);
+    Ok(())
+}
+
+#[cfg(debug_assertions)]
+fn convert_fields(fields: Vec<(String, String)>) -> Vec<FieldDefinition> {
+    fields
+        .into_iter()
+        .map(|(name, data_type)| FieldDefinition { name, data_type })
+        .collect()
+}
+
+#[cfg(debug_assertions)]
+fn resolve_presentation(
+    kind: Option<loco_gen::ScaffoldKind>,
+    htmx: bool,
+    html: bool,
+    api: bool,
+    scaffold: bool,
+) -> crate::Result<NodePresentation> {
+    if let Some(kind) = kind {
+        return Ok(kind.into());
+    }
+    if htmx {
+        return Ok(NodePresentation::Htmx);
+    }
+    if html {
+        return Ok(NodePresentation::Html);
+    }
+    if api {
+        return Ok(NodePresentation::Api);
+    }
+
+    if scaffold {
+        Err(Error::string(
+            "Error: generating this component requires one of `--kind`, `--htmx`, `--html`, or `--api` to be specified. Run with `--help` for more information.",
+        ))
     } else {
-        let get_result = loco_gen::generate(
-            &loco_gen::new_generator(),
-            component.into_gen_component(config)?,
+        Err(Error::string(
+            "Error: One of `kind`, `htmx`, `html`, or `api` must be specified.",
+        ))
+    }
+}
+
+#[cfg(debug_assertions)]
+impl From<loco_gen::ScaffoldKind> for NodePresentation {
+    fn from(value: loco_gen::ScaffoldKind) -> Self {
+        match value {
+            loco_gen::ScaffoldKind::Htmx => Self::Htmx,
+            loco_gen::ScaffoldKind::Html => Self::Html,
+            loco_gen::ScaffoldKind::Api => Self::Api,
+        }
+    }
+}
+
+#[cfg(debug_assertions)]
+#[derive(Default)]
+pub struct CliScaffoldGenerator;
+
+#[cfg(debug_assertions)]
+impl ScaffoldGenerator for CliScaffoldGenerator {
+    fn generate(&self, command: NodeCreationCommand) -> crate::Result<ScaffoldGeneration> {
+        let generator = loco_gen::new_generator();
+        let component = to_loco_component(command.component);
+        let result = loco_gen::generate(
+            &generator,
+            component,
             &loco_gen::AppInfo {
-                app_name: H::app_name().to_string(),
+                app_name: command.app_name,
             },
         )?;
-        let messages = loco_gen::collect_messages(&get_result);
-        println!("{messages}");
+        let message = loco_gen::collect_messages(&result);
+        Ok(ScaffoldGeneration::new(message))
     }
-    Ok(())
+}
+
+#[cfg(debug_assertions)]
+fn to_loco_component(component: NodeComponent) -> loco_gen::Component {
+    match component {
+        #[cfg(feature = "with-db")]
+        NodeComponent::Model {
+            name,
+            with_timestamps,
+            fields,
+        } => loco_gen::Component::Model {
+            name,
+            with_tz: with_timestamps,
+            fields: fields.into_iter().map(FieldDefinition::into_pair).collect(),
+        },
+        #[cfg(feature = "with-db")]
+        NodeComponent::Migration {
+            name,
+            with_timestamps,
+            fields,
+        } => loco_gen::Component::Migration {
+            name,
+            with_tz: with_timestamps,
+            fields: fields.into_iter().map(FieldDefinition::into_pair).collect(),
+        },
+        #[cfg(feature = "with-db")]
+        NodeComponent::Scaffold {
+            name,
+            with_timestamps,
+            fields,
+            interface,
+        } => loco_gen::Component::Scaffold {
+            name,
+            with_tz: with_timestamps,
+            fields: fields.into_iter().map(FieldDefinition::into_pair).collect(),
+            kind: to_loco_scaffold_kind(interface),
+        },
+        NodeComponent::Controller {
+            name,
+            actions,
+            interface,
+        } => loco_gen::Component::Controller {
+            name,
+            actions,
+            kind: to_loco_scaffold_kind(interface),
+        },
+        NodeComponent::Task { name } => loco_gen::Component::Task { name },
+        NodeComponent::Scheduler => loco_gen::Component::Scheduler {},
+        NodeComponent::Worker { name } => loco_gen::Component::Worker { name },
+        NodeComponent::Mailer { name } => loco_gen::Component::Mailer { name },
+        NodeComponent::Data { name } => loco_gen::Component::Data { name },
+    }
+}
+
+#[cfg(debug_assertions)]
+fn to_loco_scaffold_kind(presentation: NodePresentation) -> loco_gen::ScaffoldKind {
+    match presentation {
+        NodePresentation::Htmx => loco_gen::ScaffoldKind::Htmx,
+        NodePresentation::Html => loco_gen::ScaffoldKind::Html,
+        NodePresentation::Api => loco_gen::ScaffoldKind::Api,
+    }
+}
+
+#[cfg(all(test, debug_assertions))]
+mod tests {
+    use super::*;
+    use crate::tests_cfg;
+    use std::sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    };
+
+    #[derive(Default)]
+    struct SpyGenerator {
+        calls: AtomicUsize,
+    }
+
+    impl SpyGenerator {
+        fn call_count(&self) -> usize {
+            self.calls.load(Ordering::SeqCst)
+        }
+    }
+
+    impl ScaffoldGenerator for SpyGenerator {
+        fn generate(&self, command: NodeCreationCommand) -> crate::Result<ScaffoldGeneration> {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            Ok(ScaffoldGeneration::new(format!(
+                "generated {}",
+                command.app_name
+            )))
+        }
+    }
+
+    #[test]
+    fn task_generation_invokes_generator() {
+        let config = tests_cfg::config::test_config();
+        let generator = Arc::new(SpyGenerator::default());
+
+        handle_generate_command_with_generator::<tests_cfg::db::AppHook, _>(
+            ComponentArg::Task {
+                name: "cleanup".into(),
+            },
+            &config,
+            Arc::clone(&generator),
+        )
+        .expect("generation to succeed");
+
+        assert_eq!(generator.call_count(), 1);
+    }
 }
 
 #[must_use]
