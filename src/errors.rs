@@ -10,7 +10,10 @@ use axum::{
 };
 use lettre::{address::AddressError, transport::smtp};
 
-use crate::{controller::ErrorDetail, depcheck, validation::ModelValidationErrors};
+use crate::{
+    controller::ErrorDetail, depcheck, ontology::service::OntologyServiceError,
+    validation::ModelValidationErrors,
+};
 
 /*
 backtrace principles:
@@ -140,6 +143,9 @@ pub enum Error {
 
     #[error(transparent)]
     Cache(#[from] crate::cache::CacheError),
+
+    #[error(transparent)]
+    Ontology(#[from] OntologyServiceError),
 
     #[cfg(debug_assertions)]
     #[error(transparent)]

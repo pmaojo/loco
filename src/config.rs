@@ -72,6 +72,28 @@ pub struct Config {
     #[serde(default)]
     pub settings: Option<serde_json::Value>,
 
+    /// Ontology repository configuration
+    ///
+    /// Example:
+    /// ```yaml
+    /// ontology:
+    ///   backend: in-memory
+    ///   seeds:
+    ///     - ./ontologies/catalog.json
+    /// reasoner:
+    ///   backend: native
+    ///   inference:
+    ///     class_hierarchy: true
+    ///     property_assertions: true
+    ///     property_paths: true
+    /// ```
+    #[serde(default)]
+    pub ontology: OntologySettings,
+
+    /// Reasoner backend configuration
+    #[serde(default)]
+    pub reasoner: ReasonerSettings,
+
     pub scheduler: Option<scheduler::Config>,
 }
 
@@ -500,6 +522,105 @@ impl Server {
 pub struct Workers {
     /// Toggle between different worker modes
     pub mode: WorkerMode,
+}
+
+/// Ontology repository settings controlling how ontologies are seeded and persisted.
+///
+/// Example configuration:
+/// ```yaml
+/// ontology:
+///   backend: in-memory
+///   seeds:
+///     - ./ontologies/catalog.json
+///     - ./ontologies/extensions/geo.json
+/// ```
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+pub struct OntologySettings {
+    /// Backend implementation used to persist ontologies.
+    #[serde(default)]
+    pub backend: OntologyBackend,
+    /// Paths to ontology seed files or folders loaded during bootstrap.
+    #[serde(default)]
+    pub seeds: Vec<PathBuf>,
+}
+
+/// Supported ontology storage backends.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum OntologyBackend {
+    /// An in-memory repository preloaded from seed files.
+    InMemory,
+}
+
+impl Default for OntologyBackend {
+    fn default() -> Self {
+        Self::InMemory
+    }
+}
+
+/// Reasoner configuration describing backend selection and inference toggles.
+///
+/// Example configuration:
+/// ```yaml
+/// reasoner:
+///   backend: native
+///   inference:
+///     class_hierarchy: true
+///     property_assertions: true
+///     property_paths: true
+/// ```
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+pub struct ReasonerSettings {
+    /// Reasoner backend powering inference queries.
+    #[serde(default)]
+    pub backend: ReasonerBackend,
+    /// Fine grained inference configuration.
+    #[serde(default)]
+    pub inference: ReasonerInference,
+}
+
+/// Supported reasoner implementations.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ReasonerBackend {
+    /// Built-in reasoner operating on the in-memory repository.
+    Native,
+}
+
+impl Default for ReasonerBackend {
+    fn default() -> Self {
+        Self::Native
+    }
+}
+
+/// Fine grained inference toggles for the reasoner.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct ReasonerInference {
+    /// Enable transitive traversal of class hierarchies.
+    #[serde(default = "ReasonerInference::enabled")]
+    pub class_hierarchy: bool,
+    /// Enable traversal of property assertions for individuals.
+    #[serde(default = "ReasonerInference::enabled")]
+    pub property_assertions: bool,
+    /// Enable computation of shortest paths between individuals.
+    #[serde(default = "ReasonerInference::enabled")]
+    pub property_paths: bool,
+}
+
+impl ReasonerInference {
+    const fn enabled() -> bool {
+        true
+    }
+}
+
+impl Default for ReasonerInference {
+    fn default() -> Self {
+        Self {
+            class_hierarchy: true,
+            property_assertions: true,
+            property_paths: true,
+        }
+    }
 }
 
 /// Worker mode configuration

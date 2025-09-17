@@ -7,10 +7,12 @@
 
 pub mod entities;
 pub mod repositories;
+pub mod service;
 pub mod value_objects;
 
 pub use entities::{
     Class, Individual, Ontology, OntologyError, Property, PropertyAssertion, PropertyKind,
 };
 pub use repositories::{OntologyRepository, OntologySnapshot, OntologySummary, ReasoningQuery};
+pub use service::{OntologyService, OntologyServiceError};
 pub use value_objects::{Iri, IriError};

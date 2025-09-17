@@ -26,6 +26,7 @@ use crate::{
     errors::Error,
     introspection::graph::service::{ApplicationGraphService, GraphIntrospectionSeed},
     mailer::{EmailSender, MailerWorker},
+    ontology::service::OntologyService,
     prelude::BackgroundWorker,
     scheduler::{self, Scheduler},
     storage::{self, Storage},
@@ -388,16 +389,22 @@ pub async fn create_context<H: Hooks>(
     };
 
     let queue_provider = bgworker::create_queue_provider(&config).await?;
+    let cache_provider = cache::create_cache_provider(&config).await?;
+    let ontology_service = Arc::new(OntologyService::from_config(
+        &config.ontology,
+        &config.reasoner,
+    )?);
     let ctx = AppContext {
         environment: environment.clone(),
         #[cfg(feature = "with-db")]
         db,
         queue_provider,
         storage: Storage::single(storage::drivers::null::new()).into(),
-        cache: cache::create_cache_provider(&config).await?,
+        cache: cache_provider,
         config,
         mailer,
         shared_store: Arc::new(crate::app::SharedStore::default()),
+        ontology: ontology_service,
     };
 
     H::after_context(ctx).await

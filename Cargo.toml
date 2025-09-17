@@ -34,6 +34,7 @@ default = [
 auth_jwt = ["dep:jsonwebtoken"]
 cli = ["dep:clap"]
 testing = ["dep:axum-test", "dep:scraper", "dep:tree-fs"]
+introspection_assistant = []
 with-db = [
     "dep:sea-orm",
     "dep:sea-orm-migration",
