@@ -81,6 +81,7 @@ serde_variant = "0.1.2"
 toml = "0.8"
 
 async-trait = { workspace = true }
+oxrdf = "0.3.0"
 
 axum = { workspace = true }
 axum-extra = { version = "0.10", features = ["cookie"] }
