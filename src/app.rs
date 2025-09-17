@@ -24,6 +24,7 @@ use crate::{
     },
     environment::Environment,
     mailer::EmailSender,
+    ontology::service::OntologyService,
     storage::Storage,
     task::Tasks,
     Result,
@@ -269,6 +270,8 @@ pub struct AppContext {
     pub cache: Arc<cache::Cache>,
     /// Shared store for arbitrary application data
     pub shared_store: Arc<SharedStore>,
+    /// Ontology access layer exposing repository and reasoner adapters.
+    pub ontology: Arc<OntologyService>,
 }
 
 /// A trait that defines hooks for customizing and extending the behavior of a
