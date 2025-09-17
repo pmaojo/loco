@@ -36,6 +36,7 @@ pub mod hash;
 pub mod introspection;
 pub mod logger;
 pub mod mailer;
+pub mod ontology;
 pub mod scheduler;
 pub mod task;
 #[cfg(feature = "testing")]
