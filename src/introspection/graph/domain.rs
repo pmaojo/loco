@@ -1,21 +1,23 @@
 use std::collections::BTreeMap;
 
+use serde::Serialize;
+
 /// Represents the full application graph composed of nodes and edges.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ApplicationGraph {
     pub nodes: Vec<GraphNode>,
     pub edges: Vec<GraphEdge>,
 }
 
 /// Describes a vertex in the application graph.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct GraphNode {
     pub id: String,
     pub kind: ComponentKind,
 }
 
 /// Categorises the type of component represented by a [`GraphNode`].
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub enum ComponentKind {
     Application {
         name: String,
@@ -43,7 +45,7 @@ pub enum ComponentKind {
 }
 
 /// Relationship between two nodes in the application graph.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct GraphEdge {
     pub from: String,
     pub to: String,
@@ -51,7 +53,7 @@ pub struct GraphEdge {
 }
 
 /// Describes the semantics of an edge.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub enum EdgeKind {
     Contains,
     Triggers,
@@ -67,21 +69,21 @@ impl EdgeKind {
 }
 
 /// HTTP route description independent of the framework wiring.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct RouteDescriptor {
     pub path: String,
     pub methods: Vec<String>,
 }
 
 /// Background worker description extracted from queue registries.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct BackgroundWorkerDescriptor {
     pub name: String,
     pub queue: Option<String>,
 }
 
 /// Scheduler job description extracted from the scheduler configuration.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct SchedulerJobDescriptor {
     pub name: String,
     pub schedule: String,
@@ -92,7 +94,7 @@ pub struct SchedulerJobDescriptor {
 }
 
 /// Task description exposed by the task registry.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct TaskDescriptor {
     pub name: String,
     pub detail: Option<String>,

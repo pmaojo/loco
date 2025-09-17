@@ -3,7 +3,13 @@
 //! application and its dependencies.
 
 use super::{format, routes::Routes};
-use crate::{app::AppContext, config, Result};
+use crate::{
+    app::AppContext,
+    config,
+    errors::Error,
+    introspection::graph::service::{GraphIntrospectionSeed, GraphQueryService},
+    Result,
+};
 use axum::{extract::State, response::Response, routing::get};
 use serde::Serialize;
 
@@ -74,12 +80,26 @@ pub async fn readiness(State(ctx): State<AppContext>) -> Result<Response> {
     format::json(Health { ok: is_ok })
 }
 
+/// Returns the application graph snapshot used for introspection adapters.
+pub async fn graph(State(ctx): State<AppContext>) -> Result<Response> {
+    let snapshot = {
+        let seed = ctx
+            .shared_store
+            .get_ref::<GraphIntrospectionSeed>()
+            .ok_or_else(|| Error::Message("application graph metadata unavailable".to_string()))?;
+        seed.into_service(&ctx).snapshot()
+    };
+
+    format::json(snapshot)
+}
+
 /// Defines and returns the readiness-related routes.
 pub fn routes() -> Routes {
     Routes::new()
         .add("/_readiness", get(readiness))
         .add("/_ping", get(ping))
         .add("/_health", get(health))
+        .add("/__loco/graph", get(graph))
 }
 
 #[cfg(test)]
