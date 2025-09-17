@@ -82,6 +82,7 @@ mod backtrace;
 mod describe;
 pub mod extractor;
 pub mod format;
+pub mod knowledge;
 pub mod middleware;
 pub mod monitoring;
 mod routes;

@@ -94,6 +94,10 @@ pub struct Config {
     #[serde(default)]
     pub reasoner: ReasonerSettings,
 
+    /// Knowledge assistant configuration for ontology-aware prompts.
+    #[serde(default)]
+    pub ai: AiSettings,
+
     pub scheduler: Option<scheduler::Config>,
 }
 
@@ -621,6 +625,54 @@ impl Default for ReasonerInference {
             property_paths: true,
         }
     }
+}
+
+/// AI assistant configuration controlling the selected provider.
+///
+/// Example configuration:
+/// ```yaml
+/// ai:
+///   assistant:
+///     kind: openai
+///     api_key: ${OPENAI_API_KEY}
+///     model: gpt-4o-mini
+///     temperature: 0.2
+///     max_tokens: 512
+/// ```
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+pub struct AiSettings {
+    /// Configured assistant backend.
+    #[serde(default)]
+    pub assistant: Option<KnowledgeAssistantBackend>,
+}
+
+/// Supported knowledge assistant backends.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(tag = "kind", rename_all = "kebab-case")]
+pub enum KnowledgeAssistantBackend {
+    /// OpenAI chat completion adapter.
+    OpenAi(OpenAiSettings),
+}
+
+/// OpenAI adapter configuration options.
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+pub struct OpenAiSettings {
+    /// API key used to authenticate against the OpenAI API.
+    pub api_key: String,
+    /// Model identifier powering the responses.
+    pub model: String,
+    /// Optional temperature tuning response creativity.
+    #[serde(default)]
+    pub temperature: Option<f32>,
+    /// Optional response token budget.
+    #[serde(default)]
+    pub max_tokens: Option<u32>,
+    /// Optional custom API base URL (useful for proxies).
+    #[serde(default)]
+    pub api_base: Option<String>,
+    /// Optional system prompt prepended to every interaction.
+    #[serde(default)]
+    pub system_prompt: Option<String>,
 }
 
 /// Worker mode configuration

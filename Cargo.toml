@@ -162,6 +162,7 @@ scraper = { version = "0.21.0", features = ["deterministic"], optional = true }
 
 dashmap = "6"
 notify = "8.1.0"
+async-openai = { version = "0.23.3", default-features = false, features = ["rustls"] }
 
 [workspace.dependencies]
 tera = { version = "1.19.1" }

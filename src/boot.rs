@@ -16,6 +16,7 @@ use tracing::{debug, error, info, warn};
 #[cfg(feature = "with-db")]
 use crate::db;
 use crate::{
+    ai,
     app::{AppContext, Hooks, Initializer},
     banner::print_banner,
     bgworker, cache,
@@ -389,6 +390,7 @@ pub async fn create_context<H: Hooks>(
         &config.ontology,
         &config.reasoner,
     )?);
+    let knowledge_assistant = ai::build_assistant(&config.ai).map_err(Error::wrap)?;
     let ctx = AppContext {
         environment: environment.clone(),
         #[cfg(feature = "with-db")]
@@ -400,6 +402,7 @@ pub async fn create_context<H: Hooks>(
         mailer,
         shared_store: Arc::new(crate::app::SharedStore::default()),
         ontology: ontology_service,
+        knowledge_assistant,
     };
 
     H::after_context(ctx).await
