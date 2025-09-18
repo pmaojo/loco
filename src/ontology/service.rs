@@ -329,10 +329,29 @@ impl ReasoningQuery for InMemoryReasoner {
             return Err(OntologyServiceError::missing_class(ontology.id(), class));
         }
 
-        let mut result = Vec::new();
+        let mut children_map: BTreeMap<Iri, Vec<Iri>> = BTreeMap::new();
         for (id, candidate) in ontology.classes() {
-            if candidate.parents().contains(class) {
-                result.push(id.clone());
+            for parent in candidate.parents() {
+                children_map
+                    .entry(parent.clone())
+                    .or_default()
+                    .push(id.clone());
+            }
+        }
+
+        let mut visited = BTreeSet::new();
+        let mut to_visit = VecDeque::new();
+        if let Some(children) = children_map.get(class) {
+            to_visit.extend(children.iter().cloned());
+        }
+
+        let mut result = Vec::new();
+        while let Some(current) = to_visit.pop_front() {
+            if visited.insert(current.clone()) {
+                result.push(current.clone());
+                if let Some(children) = children_map.get(&current) {
+                    to_visit.extend(children.iter().cloned());
+                }
             }
         }
 
