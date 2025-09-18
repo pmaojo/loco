@@ -14,6 +14,7 @@
 //!     cli::main::<App, Migrator>().await
 //! }
 //! ```
+pub mod automation;
 #[cfg(feature = "with-db")]
 use {crate::boot::run_db, crate::db, sea_orm_migration::MigratorTrait};
 
@@ -29,16 +30,15 @@ use crate::bgworker::JobStatus;
 #[cfg(debug_assertions)]
 use crate::controller;
 
-#[cfg(debug_assertions)]
-use crate::introspection::graph::mutation::{
-    FieldDefinition, GraphMutationService, NodeComponent, NodeCreationCommand, NodeCreationRequest,
-    NodePresentation, ScaffoldGeneration, ScaffoldGenerator,
-
 #[cfg(feature = "introspection_assistant")]
 use crate::introspection::assistant::{
     findings_from_checks, IntrospectionAssistant, RuleBasedAssistantClient,
     SharedStoreConversationStore,
-
+};
+#[cfg(debug_assertions)]
+use crate::introspection::graph::mutation::{
+    FieldDefinition, GraphMutationService, NodeComponent, NodeCreationCommand, NodeCreationRequest,
+    NodePresentation, ScaffoldGeneration, ScaffoldGenerator,
 };
 use crate::{
     app::{AppContext, Hooks},
