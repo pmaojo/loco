@@ -60,6 +60,7 @@ pub trait CliAutomationService: Send + Sync {
     fn list_generators(&self, request: &ListGeneratorsRequest) -> Result<CommandOutput>;
     fn run_generator(&self, request: &RunGeneratorRequest) -> Result<CommandOutput>;
     fn list_tasks(&self, request: &ListTasksRequest) -> Result<CommandOutput>;
+    fn run_task(&self, request: &RunTaskRequest) -> Result<CommandOutput>;
     fn list_jobs(&self, request: &ListJobsRequest) -> Result<CommandOutput>;
     fn enqueue_job(&self, request: &EnqueueJobRequest) -> Result<CommandOutput>;
     fn run_doctor(&self, request: &RunDoctorRequest) -> Result<CommandOutput>;
@@ -80,6 +81,13 @@ pub struct RunGeneratorRequest {
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct ListTasksRequest {
     pub environment: Option<String>,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct RunTaskRequest {
+    pub environment: Option<String>,
+    pub task: String,
+    pub arguments: Vec<String>,
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
