@@ -28,12 +28,61 @@ const graphFixture = {
 
 test('renders the graph and requests AI guidance', async ({ page }) => {
   let assistantCalled = false;
+  let generatorRunCalled = false;
+  let taskRunCalled = false;
 
   await page.route('**/__loco/graph', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify(graphFixture),
+    });
+  });
+
+  await page.route('**/__loco/cli/generators', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([
+        { command: 'model', summary: 'Generate a new model' },
+        { command: 'migration', summary: 'Generate a new migration' },
+      ]),
+    });
+  });
+
+  await page.route('**/__loco/cli/tasks', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([
+        { command: 'seed', summary: 'Seed data' },
+        { command: 'refresh', summary: 'Refresh materialized views' },
+      ]),
+    });
+  });
+
+  await page.route('**/__loco/cli/generators/run', async (route) => {
+    generatorRunCalled = true;
+    const payload = await route.request().postDataJSON();
+    expect(payload.generator).toBe('model');
+    expect(payload.arguments).toEqual(['Post', 'title:string']);
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ status: 0, stdout: 'Generated Post model', stderr: '' }),
+    });
+  });
+
+  await page.route('**/__loco/cli/tasks/run', async (route) => {
+    taskRunCalled = true;
+    const payload = await route.request().postDataJSON();
+    expect(payload.task).toBe('seed');
+    expect(payload.arguments).toEqual(['alpha']);
+    expect(payload.params).toEqual({ alpha: 'one' });
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ status: 1, stdout: 'Seed task', stderr: 'Seeding failed' }),
     });
   });
 
@@ -69,4 +118,20 @@ test('renders the graph and requests AI guidance', async ({ page }) => {
   const routesToggle = page.getByLabel('Routes');
   await routesToggle.click();
   await expect(page.locator('[data-node-id^="route:"]')).toHaveCount(0);
+
+  const generatorForm = page.getByRole('form', { name: 'Generator command form' });
+  await generatorForm.getByLabel('Generator').selectOption('model');
+  await generatorForm.getByLabel('Arguments').fill('Post title:string');
+  await generatorForm.getByRole('button', { name: /run generator/i }).click();
+  await expect(page.getByText('Generated Post model')).toBeVisible();
+
+  const taskForm = page.getByRole('form', { name: 'Task command form' });
+  await taskForm.getByLabel('Task').selectOption('seed');
+  await taskForm.getByLabel('Arguments').fill('alpha');
+  await taskForm.getByLabel('Parameters').fill('alpha=one');
+  await taskForm.getByRole('button', { name: /run task/i }).click();
+  await expect(page.getByText('Seeding failed')).toBeVisible();
+
+  expect(generatorRunCalled).toBeTruthy();
+  expect(taskRunCalled).toBeTruthy();
 });

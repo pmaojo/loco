@@ -5,6 +5,12 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 4173,
-    host: '0.0.0.0'
-  }
+    host: '0.0.0.0',
+  },
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: './tests/setup.ts',
+    include: ['tests/**/*.test.ts', 'tests/**/*.test.tsx'],
+  },
 });
