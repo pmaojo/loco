@@ -415,8 +415,13 @@ mod tests {
         let base = Class::new(iri("https://example.org/Base"));
         let mut derived = Class::new(iri("https://example.org/Derived"));
         derived.add_parent(base.id().clone());
+        let mut specialized = Class::new(iri("https://example.org/Specialized"));
+        specialized.add_parent(derived.id().clone());
         ontology.add_class(base.clone()).expect("base");
         ontology.add_class(derived.clone()).expect("derived");
+        ontology
+            .add_class(specialized.clone())
+            .expect("specialized");
 
         let mut link = Property::new(iri("https://example.org/link"), PropertyKind::Object);
         link.add_domain(base.id().clone());
@@ -447,11 +452,20 @@ mod tests {
             .expect("ancestors");
         assert_eq!(ancestors, vec![base.id().clone()]);
 
+        let ancestors = repo
+            .ancestors_of(&iri("https://example.org/onto"), specialized.id())
+            .await
+            .expect("ancestors");
+        assert_eq!(ancestors, vec![base.id().clone(), derived.id().clone()]);
+
         let descendants = repo
             .descendants_of(&iri("https://example.org/onto"), base.id())
             .await
             .expect("descendants");
-        assert_eq!(descendants, vec![derived.id().clone()]);
+        assert_eq!(
+            descendants,
+            vec![derived.id().clone(), specialized.id().clone()]
+        );
 
         let related = repo
             .related_individuals(
