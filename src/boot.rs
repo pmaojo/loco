@@ -37,6 +37,7 @@ use crate::{
 #[cfg(debug_assertions)]
 use crate::{
     cli::CliScaffoldGenerator,
+    introspection::cli::{adapters::cargo::CargoCliAutomationService, CliAutomationService},
     introspection::graph::mutation::{GraphMutationService, ScaffoldGenerator},
 };
 
@@ -527,6 +528,9 @@ async fn setup_routes<H: Hooks>(
         app_context
             .shared_store
             .insert(GraphMutationService::new(H::app_name(), generator));
+        let cli_service: Arc<dyn CliAutomationService> =
+            Arc::new(CargoCliAutomationService::default());
+        app_context.shared_store.insert(cli_service);
     }
 
     let app = routes_definition.to_router::<H>(app_context.clone(), app)?;

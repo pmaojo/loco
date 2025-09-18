@@ -7,11 +7,11 @@ use super::{format, routes::Routes};
 #[cfg(debug_assertions)]
 use crate::introspection::graph::mutation::{
     GraphMutationService, NodeCreationRequest, ScaffoldGenerator,
+};
 
 #[cfg(feature = "introspection_assistant")]
 use crate::introspection::assistant::{
     self, IntrospectionAssistant, RuleBasedAssistantClient, SharedStoreConversationStore,
-
 };
 use crate::{
     app::AppContext,
@@ -21,9 +21,7 @@ use crate::{
     Result,
 };
 use axum::{extract::State, response::Response, routing::get};
-#[cfg(debug_assertions)]
-use axum::{routing::post, Json};
-#[cfg(feature = "introspection_assistant")]
+#[cfg(any(debug_assertions, feature = "introspection_assistant"))]
 use axum::{routing::post, Json};
 #[cfg(feature = "introspection_assistant")]
 use serde::Deserialize;
@@ -122,6 +120,7 @@ pub async fn create_graph_node(
         .ok_or_else(|| Error::Message("scaffold generator unavailable".to_string()))?;
     let generation = service.create_node(request)?;
     format::json(generation)
+}
 
 #[cfg(feature = "introspection_assistant")]
 #[derive(Deserialize)]
@@ -163,7 +162,6 @@ pub async fn assistant(
 /// Defines and returns the readiness-related routes.
 pub fn routes() -> Routes {
     let mut routes = Routes::new()
-    let routes = Routes::new()
         .add("/_readiness", get(readiness))
         .add("/_ping", get(ping))
         .add("/_health", get(health))
@@ -175,7 +173,9 @@ pub fn routes() -> Routes {
     }
 
     #[cfg(feature = "introspection_assistant")]
-    let routes = routes.add("/__loco/assistant", post(assistant));
+    {
+        routes = routes.add("/__loco/assistant", post(assistant));
+    }
     routes
 }
 

@@ -1,0 +1,95 @@
+use std::sync::Arc;
+
+use crate::cli::automation::CargoAutomationCommandBuilder;
+use crate::introspection::cli::{
+    CliAutomationService, CliCommand, CommandExecutor, CommandOutput, EnqueueJobRequest,
+    ListGeneratorsRequest, ListJobsRequest, ListTasksRequest, RunDoctorRequest,
+    RunGeneratorRequest,
+};
+use crate::{Error, Result};
+
+pub struct CargoCliAutomationService<E: CommandExecutor> {
+    executor: Arc<E>,
+}
+
+impl<E: CommandExecutor> CargoCliAutomationService<E> {
+    #[must_use]
+    pub fn new(executor: Arc<E>) -> Self {
+        Self { executor }
+    }
+
+    fn execute(&self, command: CliCommand) -> Result<CommandOutput> {
+        self.executor.execute(&command)
+    }
+}
+
+impl<E: CommandExecutor> CliAutomationService for CargoCliAutomationService<E> {
+    fn list_generators(&self, request: &ListGeneratorsRequest) -> Result<CommandOutput> {
+        let command = CargoAutomationCommandBuilder::list_generators(request);
+        self.execute(command)
+    }
+
+    fn run_generator(&self, request: &RunGeneratorRequest) -> Result<CommandOutput> {
+        let command = CargoAutomationCommandBuilder::run_generator(request);
+        self.execute(command)
+    }
+
+    fn list_tasks(&self, request: &ListTasksRequest) -> Result<CommandOutput> {
+        let command = CargoAutomationCommandBuilder::list_tasks(request);
+        self.execute(command)
+    }
+
+    fn list_jobs(&self, request: &ListJobsRequest) -> Result<CommandOutput> {
+        let command = CargoAutomationCommandBuilder::list_jobs(request);
+        self.execute(command)
+    }
+
+    fn enqueue_job(&self, request: &EnqueueJobRequest) -> Result<CommandOutput> {
+        let command = CargoAutomationCommandBuilder::enqueue_job(request);
+        self.execute(command)
+    }
+
+    fn run_doctor(&self, request: &RunDoctorRequest) -> Result<CommandOutput> {
+        let command = CargoAutomationCommandBuilder::run_doctor(request);
+        self.execute(command)
+    }
+}
+
+#[derive(Default)]
+pub struct StdCommandExecutor;
+
+impl CommandExecutor for StdCommandExecutor {
+    fn execute(&self, command: &CliCommand) -> Result<CommandOutput> {
+        use std::process::Command;
+
+        let output = Command::new(&command.program)
+            .args(&command.args)
+            .output()?;
+        let status_code = output.status.code().unwrap_or(-1);
+        let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
+        let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+
+        if !output.status.success() {
+            return Err(Error::Message(format!(
+                "command `{}` failed with status {status_code}: {}",
+                command,
+                stderr.trim()
+            )));
+        }
+
+        Ok(CommandOutput::new(status_code, stdout, stderr))
+    }
+}
+
+impl CargoCliAutomationService<StdCommandExecutor> {
+    #[must_use]
+    pub fn system() -> Self {
+        Self::new(Arc::new(StdCommandExecutor::default()))
+    }
+}
+
+impl Default for CargoCliAutomationService<StdCommandExecutor> {
+    fn default() -> Self {
+        Self::system()
+    }
+}
