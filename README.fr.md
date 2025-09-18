@@ -101,6 +101,29 @@ listening on port 5150
 ```
 <!-- </snip> -->
 
+## Console graphique des commandes
+
+Le visualiseur du graphe intègre désormais une console qui pilote un sous-ensemble sécurisé de commandes `cargo loco`.
+La console s’active automatiquement lorsque l’application est compilée avec `debug_assertions` (c’est le cas de `cargo run`).
+Pour l’utiliser dans un binaire de production, enregistrez explicitement un [`CliAutomationService`](./src/controller/cli_console.rs)
+dans le `AppContext` avant de monter les routes.【F:src/controller/cli_console.rs†L83-L104】【F:src/boot.rs†L510-L535】
+L’option "assistant" du docteur nécessite le flag de compilation `introspection_assistant`, qui expose également
+`/__loco/assistant` pour l’assistant IA.【F:src/controller/monitoring.rs†L59-L103】
+
+Ces routes déclenchent des exécutables locaux (`cargo loco`, générateurs et tâches). Veillez donc à limiter l’accès réseau,
+placer la console derrière une authentification forte, ou désactiver complètement les routes en production. Sans
+`debug_assertions`, aucun adaptateur n’est enregistré par défaut et les points d’entrée renvoient `404`, ce qui évite les
+exécutions non désirées à distance.【F:src/boot.rs†L510-L535】【F:src/controller/cli_console.rs†L173-L182】
+
+Ressources utiles :
+
+* `/__loco/cli/generators` et `/__loco/cli/generators/run` pour lister et lancer les générateurs autorisés.
+* `/__loco/cli/tasks` et `/__loco/cli/tasks/run` pour exécuter une tâche avec arguments et paramètres.
+* `/__loco/cli/doctor/snapshot` pour lancer `cargo loco doctor` (avec assistants activés si le flag est disponible).
+
+Consultez la documentation détaillée dans [`docs-site`](./docs-site/content/docs/extras/gui-console.md) pour la configuration
+serveur et le durcissement de la surface d’attaque.
+
 ## Servi par Loco
 + [SpectralOps](https://spectralops.io) - divers services servi par le framework Loco
 + [Nativish](https://nativi.sh) - app backend servi par le framework Loco

@@ -103,6 +103,19 @@ listening on port 5150
 ```
 <!-- </snip> -->
 
+## 그래픽 명령 콘솔
+
+그래프 뷰어에는 승인된 `cargo loco` 명령을 브라우저에서 바로 실행할 수 있는 콘솔이 추가되었습니다.
+`cargo run`처럼 `debug_assertions`가 활성화된 빌드에서는 자동으로 노출되며, 배포용 바이너리에서 사용하려면 부팅 단계에서
+[`CliAutomationService`](./src/controller/cli_console.rs)를 `AppContext`에 직접 등록해야 합니다.【F:src/controller/cli_console.rs†L83-L104】【F:src/boot.rs†L510-L535】
+의사(doctor) 스냅샷에 있는 어시스턴트 옵션은 `introspection_assistant` 피처를 활성화해 컴파일해야 하고, 그에 따라 `__/loco/assistant` 엔드포인트도 노출됩니다.【F:src/controller/monitoring.rs†L59-L103】
+
+이 엔드포인트들은 로컬 툴체인(`cargo loco`, 제너레이터, 태스크)을 직접 실행하므로 신뢰할 수 있는 네트워크에만 공개하고, 역방향 프록시에서 인증을 적용하거나
+프로덕션에서는 완전히 비활성화하는 것이 좋습니다. `debug_assertions`가 꺼져 있으면 기본으로 어떤 어댑터도 등록되지 않으며, 엔드포인트는 `404`를 반환하여
+호스팅 환경에서 의도치 않은 명령 실행 노출을 방지합니다.【F:src/boot.rs†L510-L535】【F:src/controller/cli_console.rs†L173-L182】
+
+설치 및 보안 강화 절차는 [`docs-site`](./docs-site/content/docs/extras/gui-console.md)에서 자세히 확인할 수 있습니다.
+
 ## Loco 사용 사례
 + [SpectralOps](https://spectralops.io) - Loco 프레임워크로 구동되는 다양한 서비스
 + [Nativish](https://nativi.sh) - Loco 프레임워크로 구동되는 앱 백엔드
