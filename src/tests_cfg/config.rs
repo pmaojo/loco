@@ -62,6 +62,7 @@ pub fn test_config() -> Config {
         ontology: config::OntologySettings::default(),
         reasoner: config::ReasonerSettings::default(),
         ai: config::AiSettings::default(),
+        introspection: config::IntrospectionConfig::default(),
     }
 }
 

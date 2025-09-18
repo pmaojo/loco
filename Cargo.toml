@@ -30,11 +30,13 @@ default = [
     "bg_redis",
     "bg_pg",
     "bg_sqlt",
+    "introspection_console",
 ]
 auth_jwt = ["dep:jsonwebtoken"]
 cli = ["dep:clap"]
 testing = ["dep:axum-test", "dep:scraper", "dep:tree-fs"]
 introspection_assistant = []
+introspection_console = []
 with-db = [
     "dep:sea-orm",
     "dep:sea-orm-migration",

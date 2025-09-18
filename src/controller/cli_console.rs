@@ -178,6 +178,9 @@ pub async fn doctor_snapshot(
 }
 
 fn resolve_service(ctx: &AppContext) -> Result<Arc<dyn CliAutomationService>> {
+    if !ctx.config.introspection.console.enabled {
+        return Err(Error::NotFound);
+    }
     ctx.shared_store
         .get_ref::<Arc<dyn CliAutomationService>>()
         .map(|service| Arc::clone(&*service))

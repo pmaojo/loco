@@ -1,3 +1,4 @@
+#[cfg(feature = "introspection_console")]
 mod cli_console;
 mod extractor;
 mod graph;
