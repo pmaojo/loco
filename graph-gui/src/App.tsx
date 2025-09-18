@@ -2,17 +2,22 @@ import { useMemo } from 'react';
 import { HttpGraphRepository } from './adapters/http/HttpGraphRepository';
 import { HttpAssistantService } from './adapters/http/HttpAssistantService';
 import { GraphService } from './core/services/GraphService';
+import { CommandConsoleService } from './core/services/CommandConsoleService';
 import { useGraph } from './hooks/useGraph';
 import { GraphCanvas } from './components/GraphCanvas';
 import { ControlsPanel } from './components/ControlsPanel';
 import { NodeDetails } from './components/NodeDetails';
 import { GraphLegend } from './components/GraphLegend';
 import { LoadingState } from './components/LoadingState';
+import { CommandConsole } from './components/CommandConsole';
+import { HttpCliService } from './adapters/http/HttpCliService';
 
 const App = () => {
   const repository = useMemo(() => new HttpGraphRepository(), []);
   const assistantService = useMemo(() => new HttpAssistantService(), []);
   const graphService = useMemo(() => new GraphService(repository), [repository]);
+  const cliAdapter = useMemo(() => new HttpCliService(), []);
+  const commandConsoleService = useMemo(() => new CommandConsoleService(cliAdapter), [cliAdapter]);
 
   const {
     status,
@@ -87,6 +92,8 @@ const App = () => {
             />
           </aside>
         </div>
+
+        <CommandConsole service={commandConsoleService} />
       </main>
     </div>
   );
