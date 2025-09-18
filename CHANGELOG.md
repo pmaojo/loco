@@ -18,6 +18,11 @@
 - Adding new imports about multipart. [https://github.com/loco-rs/loco/pull/1600](https://github.com/loco-rs/loco/pull/1600)
 - Adding readiness default endpoint. [https://github.com/loco-rs/loco/pull/1563](https://github.com/loco-rs/loco/pull/1563)
 - Add Route methods to make collecting and nesting easier. [https://github.com/loco-rs/loco/pull/1608](https://github.com/loco-rs/loco/pull/1608)
+- Docs: Document the GUI command console feature flags and server environment requirements for the new browser tooling.【F:README.md†L119-L147】【F:DEVELOPMENT.md†L1-L23】【F:docs-site/content/docs/extras/gui-console.md†L5-L57】
+
+### Breaking Changes
+
+- CLI automation modules retain their existing routes; the GUI console reuses the current `__loco/cli` endpoints with no signature changes.【F:src/controller/cli_console.rs†L78-L185】
 
 
 ## v0.16.3

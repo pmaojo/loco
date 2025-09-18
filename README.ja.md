@@ -88,6 +88,19 @@ $ cargo loco start
 listening on port 5150
 ```
 
+## GUI コマンドコンソール
+
+グラフビューアには、承認済みの `cargo loco` コマンドをブラウザから実行できるコンソールが追加されました。
+`cargo run` など `debug_assertions` が有効なビルドでは自動的に利用可能です。プロダクションビルドで利用する場合は、
+ブート時に [`CliAutomationService`](./src/controller/cli_console.rs) を `AppContext` に登録してください。【F:src/controller/cli_console.rs†L83-L104】【F:src/boot.rs†L510-L535】
+ドクター画面のアシスタント機能を有効化するには `introspection_assistant` フィーチャーでコンパイルし、`__/loco/assistant` を公開する必要があります。【F:src/controller/monitoring.rs†L59-L103】
+
+これらのエンドポイントはローカルツールチェーン（`cargo loco`、各種ジェネレーター、タスク）を呼び出します。信頼できるネットワークだけに公開し、
+リバースプロキシで認証を挟むか、必要に応じて本番環境では無効化してください。`debug_assertions` が無効な場合はアダプターが登録されず、
+エンドポイントは `404` を返すため、ホスティング環境で意図せずコマンド実行が露出することを防げます。【F:src/boot.rs†L510-L535】【F:src/controller/cli_console.rs†L173-L182】
+
+セットアップ手順とハードニングの詳細は [`docs-site`](./docs-site/content/docs/extras/gui-console.md) を参照してください。
+
 ## Locoによって開発されています
 + [SpectralOps](https://spectralops.io) - Locoフレームワークによる各種サービス
 + [Nativish](https://nativi.sh) - Locoフレームワークによるアプリバックエンド

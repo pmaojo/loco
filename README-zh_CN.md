@@ -45,6 +45,19 @@ cd my_project
 cargo loco start
 ```
 
+## 图形命令控制台
+
+图形可视化界面现在包含一个命令控制台，可以在浏览器中调用经过审核的 `cargo loco` 命令集合。
+默认使用 `cargo run`（启用了 `debug_assertions`）时控制台会自动可用；如果要在生产版本中启用，需要在启动时
+手动向 `AppContext` 注入 [`CliAutomationService`](./src/controller/cli_console.rs)。【F:src/controller/cli_console.rs†L83-L104】【F:src/boot.rs†L510-L535】
+“助手”选项依赖 `introspection_assistant` 编译特性来开放 `__/loco/assistant` 端点。【F:src/controller/monitoring.rs†L59-L103】
+
+这些端点会直接调用本地工具链（`cargo loco`、生成器与任务），建议仅对可信网络开放，并在生产环境中结合
+身份认证或完全禁用它们。未启用 `debug_assertions` 时框架不会注册适配器，因此会返回 `404 Not Found`，以防
+止在托管环境中意外暴露执行能力。【F:src/boot.rs†L510-L535】【F:src/controller/cli_console.rs†L173-L182】
+
+更多信息和部署建议请参阅 [`docs-site`](./docs-site/content/docs/extras/gui-console.md)。
+
 ## 贡献
 
 欢迎对 Loco 的贡献！请阅读 [CONTRIBUTING.md](CONTRIBUTING.md) 了解更多信息。

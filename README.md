@@ -140,6 +140,33 @@ npm run test:e2e
 The Playwright tests stub backend responses, assert that the graph is rendered, and validate the AI call flow
 without requiring a running Loco backend.
 
+## GUI Command Console
+
+The graph visualiser now embeds an interactive console for invoking a curated subset of `cargo loco` commands.
+The console is available whenever the application is compiled with `debug_assertions` (the default for `cargo run`) and
+can also be enabled in release builds by adding a shared [`CliAutomationService`](./src/controller/cli_console.rs) to the
+application context during bootstrapping.【F:src/controller/cli_console.rs†L83-L104】【F:src/boot.rs†L510-L535】 The optional
+AI assistant toggle in the doctor form requires the `introspection_assistant` feature flag so that the
+`/__loco/assistant` endpoint is exposed.【F:src/controller/monitoring.rs†L59-L103】
+
+Because the endpoints forward requests to the local toolchain (`cargo loco` and any generators or tasks it shells out to),
+restrict network access to trusted operators, protect reverse proxies with authentication, or disable the routes entirely in
+production environments. The CLI automation adapter is only registered automatically when `debug_assertions` are enabled;
+release builds respond with `404 Not Found` unless you explicitly register your own adapter, which prevents accidental
+exposure of command execution in hosted environments.【F:src/boot.rs†L510-L535】【F:src/controller/cli_console.rs†L173-L182】
+
+The console understands the following endpoints and mirrors the same parameters that the CLI accepts:
+
+* `/__loco/cli/generators` – lists generators along with summaries parsed from `cargo loco generate --help` output.
+* `/__loco/cli/generators/run` – executes a generator with optional arguments and an environment override.
+* `/__loco/cli/tasks` – enumerates registered tasks for a given environment.
+* `/__loco/cli/tasks/run` – runs a task, including structured key/value parameters.
+* `/__loco/cli/doctor/snapshot` – runs `cargo loco doctor` and can include the graph snapshot or assistant suggestions when the
+  feature flag is enabled.
+
+Refer to [`docs-site`](./docs-site/content/docs/extras/gui-console.md) for end-to-end setup instructions and security
+hardening tips.
+
 ## Powered by Loco
 + [SpectralOps](https://spectralops.io) - various services powered by Loco
   framework

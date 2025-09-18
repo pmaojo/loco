@@ -106,6 +106,19 @@ listening on port 5150
 ```
 <!-- </snip> -->
 
+## Console gráfico de comandos
+
+O visualizador de grafo agora inclui um console interativo que executa um conjunto aprovado de comandos `cargo loco` diretamente no navegador.
+Ele fica disponível automaticamente em builds com `debug_assertions` (como `cargo run`) e pode ser habilitado em builds de produção
+registrando manualmente um [`CliAutomationService`](./src/controller/cli_console.rs) no `AppContext` durante o boot.【F:src/controller/cli_console.rs†L83-L104】【F:src/boot.rs†L510-L535】
+Para usar o botão do assistente, compile com a _feature_ `introspection_assistant`, que também expõe o endpoint `__/loco/assistant`.【F:src/controller/monitoring.rs†L59-L103】
+
+Como as rotas disparam o toolchain local (`cargo loco`, geradores e _tasks_), mantenha o acesso restrito a operadores confiáveis, coloque a interface atrás de autenticação forte
+ou desative-a completamente em produção. Sem `debug_assertions` nenhum adaptador é registrado por padrão e as rotas retornam `404`, evitando execução remota acidental até que você
+forneça sua própria implementação.【F:src/boot.rs†L510-L535】【F:src/controller/cli_console.rs†L173-L182】
+
+Veja instruções completas e recomendações de segurança no [`docs-site`](./docs-site/content/docs/extras/gui-console.md).
+
 ## Impulsionado pelo Loco
 + [SpectralOps](https://spectralops.io) - vários serviços impulsionados pelo framework Loco
 + [Nativish](https://nativi.sh) - backend do aplicativo impulsionado pelo framework Loco

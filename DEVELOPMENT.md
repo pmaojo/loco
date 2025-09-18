@@ -16,6 +16,27 @@ We keep minimal version requirements for these. As a maintainer, you can update 
 
 
 
+## GUI command console environment
+
+The web console forwards requests to the local `cargo loco` binary and expects a few runtime hints when executed inside
+integration or staging servers:
+
+* `LOCO_ENV` (or `RAILS_ENV`/`NODE_ENV`) selects the configuration profile that is loaded before shelling out to `cargo loco`.
+  You can pass an override from the UI, but setting the variable at process start keeps the doctor snapshots consistent with the
+  running instance.【F:src/environment.rs†L21-L45】
+* `LOCO_CONFIG_FOLDER` can point to an alternate configuration directory when the binary runs outside the project root, ensuring
+  the CLI commands resolve the same settings that the server uses.【F:src/environment.rs†L33-L52】
+* `LOCO_DATA` lets you relocate JSON fixtures that some generators rely on.【F:src/data.rs†L7-L24】
+* `SCHEDULER_CONFIG` provides an explicit scheduler configuration path for job inspection, which keeps the CLI console aligned with
+  the worker setup deployed to that environment.【F:src/boot.rs†L218-L240】
+
+Remember that the automation adapter is registered automatically only when `debug_assertions` are enabled; register your own
+[`CliAutomationService`](src/controller/cli_console.rs) when running the server in release mode to avoid 404 responses inside the
+console.【F:src/controller/cli_console.rs†L83-L104】【F:src/boot.rs†L510-L535】
+
+Ensure the underlying toolchain (`cargo`, the Rust target directory, third-party CLIs such as `sea-orm-cli`) is available inside
+your container or remote shell before exposing the endpoints.
+
 ## Running Tests
 
 Before running tests make sure that:
