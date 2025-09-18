@@ -87,3 +87,26 @@ jobs:
 
       - name: Run cargo test
         run: cargo test --all-features --workspace --exclude loco-gen --exclude loco
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: graph-gui/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: graph-gui
+        run: npm ci
+
+      - name: Build graph GUI
+        working-directory: graph-gui
+        run: npm run build
+
+      - name: Install Playwright browsers
+        working-directory: graph-gui
+        run: npx playwright install --with-deps
+
+      - name: Run Playwright smoke tests
+        working-directory: graph-gui
+        run: npx playwright test smoke

@@ -1,6 +1,7 @@
 use std::{
     net::SocketAddr,
     sync::{Arc, Mutex},
+    time::{Duration, Instant},
 };
 
 use axum::{
@@ -42,6 +43,7 @@ struct StubCliAutomationService {
     run_generator_response: CommandOutput,
     run_task_response: CommandOutput,
     doctor_response: CommandOutput,
+    run_task_delay: Option<Duration>,
     list_generators_calls: Mutex<Vec<ListGeneratorsRequest>>,
     list_tasks_calls: Mutex<Vec<ListTasksRequest>>,
     run_generator_calls: Mutex<Vec<RunGeneratorRequest>>,
@@ -153,6 +155,9 @@ impl CliAutomationService for StubCliAutomationService {
             .lock()
             .expect("run_task lock")
             .push(request.clone());
+        if let Some(delay) = self.run_task_delay {
+            std::thread::sleep(delay);
+        }
         Ok(self.run_task_response.clone())
     }
 }
@@ -236,6 +241,41 @@ async fn run_generator_forwards_payload() {
 }
 
 #[tokio::test]
+async fn run_generator_propagates_failure_status_and_errors() {
+    let ctx = tests_cfg::app::get_app_context().await;
+    let service = Arc::new(StubCliAutomationService {
+        run_generator_response: CommandOutput::new(42, "", "generation failed"),
+        ..StubCliAutomationService::default()
+    });
+    insert_service(&ctx, service.clone());
+
+    let router = router_with_state(ctx.clone());
+    let server =
+        TestServer::new(router.into_make_service_with_connect_info::<SocketAddr>()).unwrap();
+
+    let response = server
+        .post("/__loco/cli/generators/run")
+        .json(&json!({
+            "generator": "migration",
+            "arguments": ["users"],
+            "environment": "prod"
+        }))
+        .await;
+
+    assert_eq!(response.status_code(), StatusCode::OK);
+
+    let payload = response.json::<serde_json::Value>();
+    assert_eq!(payload["status"], 42);
+    assert_eq!(payload["stderr"], "generation failed");
+
+    let calls = service.run_generator_calls();
+    assert_eq!(calls.len(), 1);
+    assert_eq!(calls[0].generator, "migration");
+    assert_eq!(calls[0].arguments, vec!["users"]);
+    assert_eq!(calls[0].environment, Some("prod".into()));
+}
+
+#[tokio::test]
 async fn list_tasks_parses_cli_output() {
     let ctx = tests_cfg::app::get_app_context().await;
     let service = Arc::new(StubCliAutomationService::with_list_tasks_stdout(
@@ -307,10 +347,57 @@ async fn run_task_merges_arguments_and_params() {
 }
 
 #[tokio::test]
+async fn run_task_reflects_long_running_execution() {
+    let ctx = tests_cfg::app::get_app_context().await;
+    let delay = Duration::from_millis(40);
+    let service = Arc::new(StubCliAutomationService {
+        run_task_response: CommandOutput::new(0, "completed", ""),
+        run_task_delay: Some(delay),
+        ..StubCliAutomationService::default()
+    });
+    insert_service(&ctx, service.clone());
+
+    let router = router_with_state(ctx.clone());
+    let server =
+        TestServer::new(router.into_make_service_with_connect_info::<SocketAddr>()).unwrap();
+
+    let started = Instant::now();
+    let response = server
+        .post("/__loco/cli/tasks/run")
+        .json(&json!({
+            "task": "long_runner",
+            "arguments": ["alpha"],
+            "environment": "dev"
+        }))
+        .await;
+    let elapsed = started.elapsed();
+
+    assert!(
+        elapsed >= delay,
+        "expected controller to wait at least {:?}, observed {:?}",
+        delay,
+        elapsed
+    );
+    assert_eq!(response.status_code(), StatusCode::OK);
+
+    let payload = response.json::<serde_json::Value>();
+    assert_eq!(payload["stdout"], "completed");
+
+    let calls = service.run_task_calls();
+    assert_eq!(calls.len(), 1);
+    assert_eq!(calls[0].task, "long_runner");
+    assert_eq!(calls[0].environment, Some("dev".into()));
+}
+
+#[tokio::test]
 async fn doctor_snapshot_parses_json_output() {
     let ctx = tests_cfg::app::get_app_context().await;
     let service = Arc::new(StubCliAutomationService {
-        doctor_response: CommandOutput::new(0, "{\"ok\":true}", ""),
+        doctor_response: CommandOutput::new(
+            0,
+            r#"{"ok":false,"checks":[{"name":"queue","status":"failing"}]}"#,
+            "investigate queue connectivity",
+        ),
         ..StubCliAutomationService::default()
     });
     insert_service(&ctx, service.clone());
@@ -321,19 +408,32 @@ async fn doctor_snapshot_parses_json_output() {
 
     let response = server
         .post("/__loco/cli/doctor/snapshot")
-        .json(&json!({"environment": "dev", "graph": true}))
+        .json(&json!({
+            "environment": "dev",
+            "graph": true,
+            "production": true,
+            "config": true,
+            "assistant": true
+        }))
         .await;
 
     assert_eq!(response.status_code(), StatusCode::OK);
 
     let snapshot = response.json::<serde_json::Value>();
     assert_eq!(snapshot["status"], 0);
-    assert_eq!(snapshot["stdout"], json!({"ok": true}));
+    assert_eq!(
+        snapshot["stdout"],
+        json!({"ok": false, "checks": [{"name": "queue", "status": "failing"}]})
+    );
+    assert_eq!(snapshot["stderr"], "investigate queue connectivity");
 
     let calls = service.doctor_calls();
     assert_eq!(calls.len(), 1);
     assert_eq!(calls[0].graph, true);
     assert_eq!(calls[0].environment, Some("dev".into()));
+    assert!(calls[0].production);
+    assert!(calls[0].config);
+    assert!(calls[0].assistant);
 }
 
 #[tokio::test]
@@ -347,4 +447,35 @@ async fn returns_not_found_when_service_missing() {
     let response = server.get("/__loco/cli/generators").await;
 
     assert_eq!(response.status_code(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn routes_return_not_found_when_console_disabled() {
+    let mut ctx = tests_cfg::app::get_app_context().await;
+    ctx.config.introspection.console.enabled = false;
+
+    let service = Arc::new(StubCliAutomationService {
+        list_generators_response: CommandOutput::new(0, "Commands:\n  task    Sample task", ""),
+        ..StubCliAutomationService::default()
+    });
+    insert_service(&ctx, service);
+
+    let router = router_with_state(ctx.clone());
+    let server =
+        TestServer::new(router.into_make_service_with_connect_info::<SocketAddr>()).unwrap();
+
+    let list_response = server.get("/__loco/cli/generators").await;
+    assert_eq!(list_response.status_code(), StatusCode::NOT_FOUND);
+
+    let run_response = server
+        .post("/__loco/cli/generators/run")
+        .json(&json!({"generator": "task"}))
+        .await;
+    assert_eq!(run_response.status_code(), StatusCode::NOT_FOUND);
+
+    let doctor_response = server
+        .post("/__loco/cli/doctor/snapshot")
+        .json(&json!({"environment": "dev"}))
+        .await;
+    assert_eq!(doctor_response.status_code(), StatusCode::NOT_FOUND);
 }

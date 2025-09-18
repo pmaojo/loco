@@ -98,6 +98,10 @@ pub struct Config {
     #[serde(default)]
     pub ai: AiSettings,
 
+    /// Introspection tooling configuration toggles.
+    #[serde(default)]
+    pub introspection: IntrospectionConfig,
+
     pub scheduler: Option<scheduler::Config>,
 }
 
@@ -644,6 +648,44 @@ pub struct AiSettings {
     /// Configured assistant backend.
     #[serde(default)]
     pub assistant: Option<KnowledgeAssistantBackend>,
+}
+
+/// Configuration for developer introspection tooling such as the command console.
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+#[serde(default)]
+pub struct IntrospectionConfig {
+    /// Browser-based command console configuration.
+    pub console: ConsoleConfig,
+}
+
+impl IntrospectionConfig {
+    /// Indicates whether the web console is enabled.
+    #[must_use]
+    pub fn console_enabled(&self) -> bool {
+        self.console.enabled
+    }
+}
+
+/// Console configuration controlling exposure of CLI automation routes.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct ConsoleConfig {
+    /// Enable the console automation routes.
+    #[serde(default = "ConsoleConfig::default_enabled")]
+    pub enabled: bool,
+}
+
+impl Default for ConsoleConfig {
+    fn default() -> Self {
+        Self {
+            enabled: Self::default_enabled(),
+        }
+    }
+}
+
+impl ConsoleConfig {
+    const fn default_enabled() -> bool {
+        true
+    }
 }
 
 /// Supported knowledge assistant backends.
