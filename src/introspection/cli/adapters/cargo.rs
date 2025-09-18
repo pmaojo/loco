@@ -4,7 +4,7 @@ use crate::cli::automation::CargoAutomationCommandBuilder;
 use crate::introspection::cli::{
     CliAutomationService, CliCommand, CommandExecutor, CommandOutput, EnqueueJobRequest,
     ListGeneratorsRequest, ListJobsRequest, ListTasksRequest, RunDoctorRequest,
-    RunGeneratorRequest,
+    RunGeneratorRequest, RunTaskRequest,
 };
 use crate::{Error, Result};
 
@@ -36,6 +36,11 @@ impl<E: CommandExecutor> CliAutomationService for CargoCliAutomationService<E> {
 
     fn list_tasks(&self, request: &ListTasksRequest) -> Result<CommandOutput> {
         let command = CargoAutomationCommandBuilder::list_tasks(request);
+        self.execute(command)
+    }
+
+    fn run_task(&self, request: &RunTaskRequest) -> Result<CommandOutput> {
+        let command = CargoAutomationCommandBuilder::run_task(request);
         self.execute(command)
     }
 

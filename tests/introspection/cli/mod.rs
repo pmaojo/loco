@@ -4,7 +4,7 @@ use loco_rs::introspection::cli::adapters::cargo::CargoCliAutomationService;
 use loco_rs::introspection::cli::{
     CliAutomationService, CliCommand, CommandExecutor, CommandOutput, EnqueueJobRequest,
     ListGeneratorsRequest, ListJobsRequest, ListTasksRequest, RunDoctorRequest,
-    RunGeneratorRequest,
+    RunGeneratorRequest, RunTaskRequest,
 };
 use loco_rs::Result;
 
@@ -122,6 +122,34 @@ fn list_tasks_honours_environment() {
             "task".to_string(),
             "--environment".to_string(),
             "qa".to_string(),
+        ]
+    );
+}
+
+#[test]
+fn run_task_composes_arguments() {
+    let executor = Arc::new(FakeCommandExecutor::default());
+    let service = service_with_executor(Arc::clone(&executor));
+    let request = RunTaskRequest {
+        environment: Some("dev".into()),
+        task: "parse_args".into(),
+        arguments: vec!["foo:bar".into(), "alpha:one".into()],
+    };
+
+    service.run_task(&request).expect("command to succeed");
+
+    let commands = executor.recorded();
+    assert_eq!(commands.len(), 1);
+    assert_eq!(
+        commands[0].args,
+        vec![
+            "loco".to_string(),
+            "task".to_string(),
+            "parse_args".to_string(),
+            "foo:bar".to_string(),
+            "alpha:one".to_string(),
+            "--environment".to_string(),
+            "dev".to_string(),
         ]
     );
 }

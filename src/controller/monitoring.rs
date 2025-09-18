@@ -2,7 +2,7 @@
 //! reporting. These routes are commonly used to monitor the readiness of the
 //! application and its dependencies.
 
-use super::{format, routes::Routes};
+use super::{cli_console, format, routes::Routes};
 
 #[cfg(debug_assertions)]
 use crate::introspection::graph::mutation::{
@@ -166,6 +166,8 @@ pub fn routes() -> Routes {
         .add("/_ping", get(ping))
         .add("/_health", get(health))
         .add("/__loco/graph", get(graph));
+
+    routes = routes.merge(cli_console::routes());
 
     #[cfg(debug_assertions)]
     {

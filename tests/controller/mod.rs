@@ -1,3 +1,4 @@
+mod cli_console;
 mod extractor;
 mod graph;
 mod graph_mutation;

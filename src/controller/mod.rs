@@ -79,6 +79,7 @@ use crate::{errors::Error, Result};
 
 mod app_routes;
 mod backtrace;
+pub mod cli_console;
 mod describe;
 pub mod extractor;
 pub mod format;
