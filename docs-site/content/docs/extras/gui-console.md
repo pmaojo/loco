@@ -7,9 +7,8 @@ template = "docs/page.html"
 
 ## Overview
 
-The graph visualiser ships with an embedded command console that lets you invoke generators, tasks and `cargo loco doctor`
-directly from the browser. Each form mirrors the CLI invocation and persists a compact history, so you can review stdout,
-stderr and exit codes after the command finishes.【F:graph-gui/src/components/CommandConsole.tsx†L42-L149】【F:graph-gui/src/hooks/useCommandConsole.ts†L180-L334】
+The graph visualiser ships with an embedded command console that lets you invoke generators, tasks, `cargo loco doctor`, and job-status lookups directly from the browser. Each form mirrors the CLI invocation and persists a compact history, so you can review stdout,
+stderr and exit codes after the command finishes, or revisit the same entry while polling for job progress.【F:graph-gui/src/components/CommandConsole.tsx†L42-L149】【F:graph-gui/src/hooks/useCommandConsole.ts†L180-L334】
 
 The console issues HTTP requests against the `__loco/cli` endpoints exposed by the framework. The handlers proxy the request to
 your registered `CliAutomationService`, which defaults to the cargo adapter while `debug_assertions` are enabled.【F:src/controller/cli_console.rs†L78-L185】【F:src/boot.rs†L512-L534】 If you build the
@@ -51,6 +50,7 @@ The UI currently calls the following endpoints; you can script against them dire
 * `GET /__loco/cli/tasks` – retrieve available tasks for the chosen environment.
 * `POST /__loco/cli/tasks/run` – execute a task with structured arguments and key/value parameters.
 * `POST /__loco/cli/doctor/snapshot` – run doctor diagnostics and optionally include graph data or assistant suggestions.
+* `GET /__loco/cli/jobs/{job_id}` – retrieve the latest execution details for a scheduler job or background worker task.
 
 All routes accept an optional `environment` field, matching the `--environment` flag provided by `cargo loco` and reflected by the
 console history entries.【F:src/controller/cli_console.rs†L87-L178】【F:graph-gui/src/hooks/useCommandConsole.ts†L180-L349】
