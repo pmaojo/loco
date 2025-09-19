@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, sync::Arc};
 
-use axum::extract::{Query, State};
+use axum::extract::{Path, Query, State};
 use axum::routing::{get, post};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -10,8 +10,9 @@ use crate::{
     controller::{format, Json, Routes},
     errors::Error,
     introspection::cli::{
-        CliAutomationService, CommandOutput, ListGeneratorsRequest, ListTasksRequest,
-        RunDoctorRequest, RunGeneratorRequest, RunTaskRequest,
+        CliAutomationService, CommandOutput, JobStatusRequest, JobStatusResponse,
+        ListGeneratorsRequest, ListTasksRequest, RunDoctorRequest, RunGeneratorRequest,
+        RunTaskRequest,
     },
     Result,
 };
@@ -70,6 +71,18 @@ pub struct DoctorSnapshotResponse {
     pub stderr: String,
 }
 
+#[derive(Debug, Serialize, PartialEq)]
+pub struct JobStatusSnapshot {
+    pub id: String,
+    pub state: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub result: Option<CommandExecution>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+    #[serde(rename = "updatedAt", skip_serializing_if = "Option::is_none")]
+    pub updated_at: Option<String>,
+}
+
 #[derive(Debug, Default, Deserialize)]
 pub struct AutomationQuery {
     environment: Option<String>,
@@ -82,6 +95,7 @@ pub fn routes() -> Routes {
         .add("/__loco/cli/tasks", get(list_tasks))
         .add("/__loco/cli/tasks/run", post(run_task))
         .add("/__loco/cli/doctor/snapshot", post(doctor_snapshot))
+        .add("/__loco/cli/jobs/{job_id}", get(job_status))
 }
 
 pub async fn list_generators(
@@ -177,6 +191,20 @@ pub async fn doctor_snapshot(
     format::json(DoctorSnapshotResponse::from(output))
 }
 
+pub async fn job_status(
+    State(ctx): State<AppContext>,
+    Path(job_id): Path<String>,
+    Query(query): Query<AutomationQuery>,
+) -> Result<axum::response::Response> {
+    let service = resolve_service(&ctx)?;
+    let request = JobStatusRequest {
+        environment: query.environment,
+        job_id,
+    };
+    let response = service.job_status(&request)?;
+    format::json(JobStatusSnapshot::from(response))
+}
+
 fn resolve_service(ctx: &AppContext) -> Result<Arc<dyn CliAutomationService>> {
     if !ctx.config.introspection.console.enabled {
         return Err(Error::NotFound);
@@ -243,6 +271,18 @@ impl From<CommandOutput> for DoctorSnapshotResponse {
             status,
             stdout: stdout_value,
             stderr,
+        }
+    }
+}
+
+impl From<JobStatusResponse> for JobStatusSnapshot {
+    fn from(response: JobStatusResponse) -> Self {
+        Self {
+            id: response.id,
+            state: response.state,
+            result: response.result.map(CommandExecution::from),
+            error: response.error,
+            updated_at: response.updated_at,
         }
     }
 }

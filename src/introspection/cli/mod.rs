@@ -63,6 +63,7 @@ pub trait CliAutomationService: Send + Sync {
     fn run_task(&self, request: &RunTaskRequest) -> Result<CommandOutput>;
     fn list_jobs(&self, request: &ListJobsRequest) -> Result<CommandOutput>;
     fn enqueue_job(&self, request: &EnqueueJobRequest) -> Result<CommandOutput>;
+    fn job_status(&self, request: &JobStatusRequest) -> Result<JobStatusResponse>;
     fn run_doctor(&self, request: &RunDoctorRequest) -> Result<CommandOutput>;
 }
 
@@ -107,6 +108,21 @@ pub struct EnqueueJobRequest {
     pub tags: Vec<String>,
     pub payload: Option<String>,
     pub arguments: Vec<String>,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct JobStatusRequest {
+    pub environment: Option<String>,
+    pub job_id: String,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct JobStatusResponse {
+    pub id: String,
+    pub state: String,
+    pub result: Option<CommandOutput>,
+    pub error: Option<String>,
+    pub updated_at: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]

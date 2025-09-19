@@ -573,6 +573,14 @@ pub async fn get_jobs(
     Ok(jobs)
 }
 
+pub async fn find_job(pool: &PgPool, id: &str) -> Result<Option<Job>> {
+    let row = sqlx::query("SELECT * FROM pg_loco_queue WHERE id = $1")
+        .bind(id)
+        .fetch_optional(pool)
+        .await?;
+    row.map(|row| to_job(&row)).transpose()
+}
+
 /// Converts a row from the database into a [`Job`] object.
 ///
 /// This function takes a row from the `Postgres` database and manually extracts the necessary

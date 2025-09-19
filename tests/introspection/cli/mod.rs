@@ -3,8 +3,8 @@ use std::sync::{Arc, Mutex};
 use loco_rs::introspection::cli::adapters::cargo::CargoCliAutomationService;
 use loco_rs::introspection::cli::{
     CliAutomationService, CliCommand, CommandExecutor, CommandOutput, EnqueueJobRequest,
-    ListGeneratorsRequest, ListJobsRequest, ListTasksRequest, RunDoctorRequest,
-    RunGeneratorRequest, RunTaskRequest,
+    JobStatusRequest, JobStatusResponse, ListGeneratorsRequest, ListJobsRequest, ListTasksRequest,
+    RunDoctorRequest, RunGeneratorRequest, RunTaskRequest,
 };
 use loco_rs::Result;
 
@@ -255,5 +255,66 @@ fn run_doctor_pushes_flags() {
             "--environment".to_string(),
             "production".to_string(),
         ]
+    );
+}
+
+#[test]
+fn job_status_builds_command_with_environment() {
+    let executor = Arc::new(FakeCommandExecutor::new(CommandOutput::new(
+        0,
+        r#"{"id":"job-9","state":"queued"}"#,
+        "",
+    )));
+    let service = service_with_executor(Arc::clone(&executor));
+    let request = JobStatusRequest {
+        environment: Some("prod".into()),
+        job_id: "job-9".into(),
+    };
+
+    service
+        .job_status(&request)
+        .expect("job status command to succeed");
+
+    let commands = executor.recorded();
+    assert_eq!(commands.len(), 1);
+    assert_eq!(
+        commands[0].args,
+        vec![
+            "loco".to_string(),
+            "jobs".to_string(),
+            "status".to_string(),
+            "job-9".to_string(),
+            "--environment".to_string(),
+            "prod".to_string(),
+        ]
+    );
+}
+
+#[test]
+fn job_status_parses_cli_output() {
+    let executor = Arc::new(FakeCommandExecutor::new(CommandOutput::new(
+        0,
+        r#"{"id":"job-7","state":"completed","result":{"status":0,"stdout":"done","stderr":""},"updatedAt":"2024-01-01T00:00:00Z"}"#,
+        "",
+    )));
+    let service = service_with_executor(Arc::clone(&executor));
+    let request = JobStatusRequest {
+        job_id: "job-7".into(),
+        ..JobStatusRequest::default()
+    };
+
+    let response = service
+        .job_status(&request)
+        .expect("job status command to succeed");
+
+    assert_eq!(
+        response,
+        JobStatusResponse {
+            id: "job-7".into(),
+            state: "completed".into(),
+            result: Some(CommandOutput::new(0, "done", "")),
+            error: None,
+            updated_at: Some("2024-01-01T00:00:00Z".into()),
+        }
     );
 }
