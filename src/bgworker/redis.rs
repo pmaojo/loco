@@ -514,6 +514,16 @@ pub async fn get_jobs(
     Ok(jobs)
 }
 
+pub async fn find_job(client: &RedisPool, id: &str) -> Result<Option<Job>> {
+    let mut conn = get_connection(client).await?;
+    let job_key = format!("{JOB_KEY_PREFIX}{id}");
+    let job_json: Option<String> = conn.get(&job_key).await?;
+    match job_json {
+        Some(json) => Job::from_json(&json).map(Some),
+        None => Ok(None),
+    }
+}
+
 // Helper function to check if a job matches the filter criteria
 fn should_include_job(job: &Job, status: Option<&Vec<JobStatus>>, age_days: Option<i64>) -> bool {
     if let Some(status_list) = status {

@@ -662,6 +662,14 @@ pub async fn get_jobs(
     Ok(jobs)
 }
 
+pub async fn find_job(pool: &SqlitePool, id: &str) -> Result<Option<Job>> {
+    let row = sqlx::query("SELECT * FROM sqlt_loco_queue WHERE id = ?")
+        .bind(id)
+        .fetch_optional(pool)
+        .await?;
+    row.map(|row| to_job(&row)).transpose()
+}
+
 /// Converts a row from the database into a [`Job`] object.
 ///
 /// This function takes a row from the `SQLite` database and manually extracts the necessary

@@ -13,8 +13,9 @@ use loco_rs::{
     app::AppContext,
     controller::{cli_console, cli_console::ListableCommand},
     introspection::cli::{
-        CliAutomationService, CommandOutput, ListGeneratorsRequest, ListTasksRequest,
-        RunDoctorRequest, RunGeneratorRequest, RunTaskRequest,
+        CliAutomationService, CommandOutput, JobStatusRequest, JobStatusResponse,
+        ListGeneratorsRequest, ListTasksRequest, RunDoctorRequest, RunGeneratorRequest,
+        RunTaskRequest,
     },
     tests_cfg, TestServer,
 };
@@ -33,6 +34,7 @@ fn router_with_state(ctx: AppContext) -> Router {
             "/__loco/cli/doctor/snapshot",
             post(cli_console::doctor_snapshot),
         )
+        .route("/__loco/cli/jobs/{job_id}", get(cli_console::job_status))
         .with_state(ctx)
 }
 
@@ -43,12 +45,14 @@ struct StubCliAutomationService {
     run_generator_response: CommandOutput,
     run_task_response: CommandOutput,
     doctor_response: CommandOutput,
+    job_status_response: JobStatusResponse,
     run_task_delay: Option<Duration>,
     list_generators_calls: Mutex<Vec<ListGeneratorsRequest>>,
     list_tasks_calls: Mutex<Vec<ListTasksRequest>>,
     run_generator_calls: Mutex<Vec<RunGeneratorRequest>>,
     run_task_calls: Mutex<Vec<RunTaskRequest>>,
     doctor_calls: Mutex<Vec<RunDoctorRequest>>,
+    job_status_calls: Mutex<Vec<JobStatusRequest>>,
 }
 
 impl StubCliAutomationService {
@@ -93,6 +97,13 @@ impl StubCliAutomationService {
 
     fn doctor_calls(&self) -> Vec<RunDoctorRequest> {
         self.doctor_calls.lock().expect("doctor lock").clone()
+    }
+
+    fn job_status_calls(&self) -> Vec<JobStatusRequest> {
+        self.job_status_calls
+            .lock()
+            .expect("job_status lock")
+            .clone()
     }
 }
 
@@ -148,6 +159,14 @@ impl CliAutomationService for StubCliAutomationService {
             .expect("doctor lock")
             .push(request.clone());
         Ok(self.doctor_response.clone())
+    }
+
+    fn job_status(&self, request: &JobStatusRequest) -> loco_rs::Result<JobStatusResponse> {
+        self.job_status_calls
+            .lock()
+            .expect("job_status lock")
+            .push(request.clone());
+        Ok(self.job_status_response.clone())
     }
 
     fn run_task(&self, request: &RunTaskRequest) -> loco_rs::Result<CommandOutput> {
@@ -273,6 +292,42 @@ async fn run_generator_propagates_failure_status_and_errors() {
     assert_eq!(calls[0].generator, "migration");
     assert_eq!(calls[0].arguments, vec!["users"]);
     assert_eq!(calls[0].environment, Some("prod".into()));
+}
+
+#[tokio::test]
+async fn job_status_returns_snapshot() {
+    let ctx = tests_cfg::app::get_app_context().await;
+    let service = Arc::new(StubCliAutomationService {
+        job_status_response: JobStatusResponse {
+            id: "job-42".into(),
+            state: "completed".into(),
+            result: Some(CommandOutput::new(0, "done", "")),
+            error: None,
+            updated_at: Some("2024-01-01T00:00:00Z".into()),
+        },
+        ..StubCliAutomationService::default()
+    });
+    insert_service(&ctx, service.clone());
+
+    let router = router_with_state(ctx.clone());
+    let server =
+        TestServer::new(router.into_make_service_with_connect_info::<SocketAddr>()).unwrap();
+
+    let response = server.get("/__loco/cli/jobs/job-42").await;
+
+    assert_eq!(response.status_code(), StatusCode::OK);
+
+    let body = response.json::<serde_json::Value>();
+    assert_eq!(body["id"], "job-42");
+    assert_eq!(body["state"], "completed");
+    assert_eq!(body["result"]["status"], 0);
+    assert_eq!(body["result"]["stdout"], "done");
+    assert_eq!(body["updatedAt"], "2024-01-01T00:00:00Z");
+
+    let calls = service.job_status_calls();
+    assert_eq!(calls.len(), 1);
+    assert_eq!(calls[0].job_id, "job-42");
+    assert_eq!(calls[0].environment, None);
 }
 
 #[tokio::test]

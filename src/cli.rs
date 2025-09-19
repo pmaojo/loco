@@ -26,7 +26,7 @@ use std::process::exit;
 use std::{collections::BTreeMap, path::PathBuf};
 
 #[cfg(any(feature = "bg_redis", feature = "bg_pg", feature = "bg_sqlt"))]
-use crate::bgworker::JobStatus;
+use crate::bgworker::{JobRecord, JobStatus};
 #[cfg(debug_assertions)]
 use crate::controller;
 
@@ -52,6 +52,7 @@ use crate::{
     introspection::graph::service::{ApplicationGraphService, GraphQueryService},
     logger, task, Error,
 };
+use serde_json::{json, Value as JsonValue};
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -555,6 +556,12 @@ enum JobsCommands {
         /// Path to the file containing job details to import.
         #[arg(short, long)]
         file: PathBuf,
+    },
+    /// Displays the status of a specific job.
+    Status {
+        /// Identifier of the job to inspect.
+        #[arg(value_name = "ID")]
+        id: String,
     },
     /// Change `processing` status to `queue`.
     Requeue {
@@ -1292,8 +1299,112 @@ async fn handle_job_command<H: Hooks>(
             Ok(())
         }
         JobsCommands::Import { file } => queue.import(file.as_path()).await,
+        JobsCommands::Status { id } => {
+            let job = queue.find_job(id).await?;
+            let payload = build_job_status_payload(job, id);
+            let body = serde_json::to_string(&payload)?;
+            println!("{body}");
+            Ok(())
+        }
         JobsCommands::Requeue { from_age } => queue.requeue(from_age).await,
     }
+}
+
+#[cfg(any(feature = "bg_redis", feature = "bg_pg", feature = "bg_sqlt"))]
+fn build_job_status_payload(job: Option<JobRecord>, requested_id: &str) -> JsonValue {
+    match job {
+        Some(JobRecord {
+            id,
+            status,
+            data,
+            updated_at,
+        }) => {
+            let result = extract_command_result(&data);
+            let error = extract_error_message(&data);
+            let updated_at = updated_at.map(|timestamp| timestamp.to_rfc3339());
+            json!({
+                "id": id,
+                "state": resolve_job_state(&status),
+                "result": result,
+                "error": error,
+                "updatedAt": updated_at,
+            })
+        }
+        None => json!({
+            "id": requested_id,
+            "state": "not_found",
+            "error": format!("job {requested_id} not found"),
+        }),
+    }
+}
+
+#[cfg(any(feature = "bg_redis", feature = "bg_pg", feature = "bg_sqlt"))]
+fn extract_command_result(data: &JsonValue) -> Option<JsonValue> {
+    if let Some(result) = data.get("result") {
+        return Some(normalize_command_result(result));
+    }
+    if data.get("status").is_some() || data.get("stdout").is_some() || data.get("stderr").is_some()
+    {
+        return Some(normalize_command_result(data));
+    }
+    None
+}
+
+#[cfg(any(feature = "bg_redis", feature = "bg_pg", feature = "bg_sqlt"))]
+fn normalize_command_result(value: &JsonValue) -> JsonValue {
+    let status = coerce_i32(value.get("status"));
+    let stdout = coerce_string(value.get("stdout"));
+    let stderr = coerce_string(value.get("stderr"));
+    json!({
+        "status": status,
+        "stdout": stdout,
+        "stderr": stderr,
+    })
+}
+
+#[cfg(any(feature = "bg_redis", feature = "bg_pg", feature = "bg_sqlt"))]
+fn extract_error_message(data: &JsonValue) -> Option<String> {
+    data.get("error").and_then(|value| match value {
+        JsonValue::String(message) => Some(message.clone()),
+        JsonValue::Number(number) => Some(number.to_string()),
+        JsonValue::Bool(flag) => Some(flag.to_string()),
+        JsonValue::Null => None,
+        other => Some(other.to_string()),
+    })
+}
+
+#[cfg(any(feature = "bg_redis", feature = "bg_pg", feature = "bg_sqlt"))]
+fn resolve_job_state(status: &JobStatus) -> String {
+    serde_json::to_value(status)
+        .ok()
+        .and_then(|value| value.as_str().map(str::to_owned))
+        .unwrap_or_else(|| status.to_string())
+}
+
+#[cfg(any(feature = "bg_redis", feature = "bg_pg", feature = "bg_sqlt"))]
+fn coerce_string(value: Option<&JsonValue>) -> String {
+    match value {
+        Some(JsonValue::String(string)) => string.clone(),
+        Some(JsonValue::Number(number)) => number.to_string(),
+        Some(JsonValue::Bool(flag)) => flag.to_string(),
+        Some(JsonValue::Null) | None => String::new(),
+        Some(other) => other.to_string(),
+    }
+}
+
+#[cfg(any(feature = "bg_redis", feature = "bg_pg", feature = "bg_sqlt"))]
+fn coerce_i32(value: Option<&JsonValue>) -> i32 {
+    if let Some(JsonValue::Number(number)) = value {
+        if let Some(as_i64) = number.as_i64() {
+            return as_i64 as i32;
+        }
+    }
+    if let Some(JsonValue::String(string)) = value {
+        if let Ok(parsed) = string.parse::<i64>() {
+            return parsed as i32;
+        }
+    }
+    0
 }
 
 #[cfg(debug_assertions)]

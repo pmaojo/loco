@@ -1,6 +1,6 @@
 use crate::introspection::cli::{
-    CliCommand, EnqueueJobRequest, ListGeneratorsRequest, ListJobsRequest, ListTasksRequest,
-    RunDoctorRequest, RunGeneratorRequest, RunTaskRequest,
+    CliCommand, EnqueueJobRequest, JobStatusRequest, ListGeneratorsRequest, ListJobsRequest,
+    ListTasksRequest, RunDoctorRequest, RunGeneratorRequest, RunTaskRequest,
 };
 
 #[derive(Default)]
@@ -91,6 +91,17 @@ impl CargoAutomationCommandBuilder {
             args.push(payload.clone());
         }
         args.extend(request.arguments.clone());
+        Self::build_command(args, request.environment.as_ref())
+    }
+
+    #[must_use]
+    pub fn job_status(request: &JobStatusRequest) -> CliCommand {
+        let args = vec![
+            "loco".into(),
+            "jobs".into(),
+            "status".into(),
+            request.job_id.clone(),
+        ];
         Self::build_command(args, request.environment.as_ref())
     }
 

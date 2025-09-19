@@ -9,6 +9,7 @@ use async_trait::async_trait;
 #[cfg(feature = "cli")]
 use clap::ValueEnum;
 use serde::{Deserialize, Serialize};
+use serde_json::Value as JsonValue;
 use serde_variant::to_variant_name;
 #[cfg(feature = "bg_pg")]
 pub mod pg;
@@ -25,6 +26,7 @@ use crate::{
     },
     Error, Result,
 };
+use chrono::{DateTime, Utc};
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[cfg_attr(feature = "cli", derive(ValueEnum))]
@@ -59,6 +61,51 @@ impl std::str::FromStr for JobStatus {
 impl std::fmt::Display for JobStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         to_variant_name(self).expect("only enum supported").fmt(f)
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct JobRecord {
+    pub id: String,
+    pub status: JobStatus,
+    #[serde(rename = "task_data")]
+    pub data: JsonValue,
+    pub updated_at: Option<DateTime<Utc>>,
+}
+
+#[cfg(feature = "bg_pg")]
+impl From<pg::Job> for JobRecord {
+    fn from(job: pg::Job) -> Self {
+        Self {
+            id: job.id,
+            status: job.status,
+            data: job.data,
+            updated_at: job.updated_at,
+        }
+    }
+}
+
+#[cfg(feature = "bg_sqlt")]
+impl From<sqlt::Job> for JobRecord {
+    fn from(job: sqlt::Job) -> Self {
+        Self {
+            id: job.id,
+            status: job.status,
+            data: job.data,
+            updated_at: job.updated_at,
+        }
+    }
+}
+
+#[cfg(feature = "bg_redis")]
+impl From<redis::Job> for JobRecord {
+    fn from(job: redis::Job) -> Self {
+        Self {
+            id: job.id,
+            status: job.status,
+            data: job.data,
+            updated_at: job.updated_at,
+        }
     }
 }
 
@@ -378,6 +425,34 @@ impl Queue {
             Self::Redis(pool, _, _, _) => {
                 let jobs = redis::get_jobs(pool, status, age_days).await?;
                 Ok(serde_json::to_value(jobs)?)
+            }
+            Self::None => {
+                tracing::error!(
+                    "No queue provider is configured: compile with at least one queue provider feature"
+                );
+                Err(Error::string("provider not configured"))
+            }
+        }
+    }
+
+    #[allow(unused_variables)]
+    pub async fn find_job(&self, id: &str) -> Result<Option<JobRecord>> {
+        tracing::info!(job_id = id, "Retrieving job status");
+        match self {
+            #[cfg(feature = "bg_pg")]
+            Self::Postgres(pool, _, _, _) => {
+                let job = pg::find_job(pool, id).await.map_err(Box::from)?;
+                Ok(job.map(JobRecord::from))
+            }
+            #[cfg(feature = "bg_sqlt")]
+            Self::Sqlite(pool, _, _, _) => {
+                let job = sqlt::find_job(pool, id).await.map_err(Box::from)?;
+                Ok(job.map(JobRecord::from))
+            }
+            #[cfg(feature = "bg_redis")]
+            Self::Redis(pool, _, _, _) => {
+                let job = redis::find_job(pool, id).await?;
+                Ok(job.map(JobRecord::from))
             }
             Self::None => {
                 tracing::error!(

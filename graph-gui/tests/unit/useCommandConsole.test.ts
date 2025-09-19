@@ -85,5 +85,8 @@ describe('useCommandConsole store', () => {
     expect(entry.kind).toBe('job');
     expect(entry.context?.jobId).toBe('job-1');
     expect(entry.status).toBe('success');
+    expect(entry.exitCode).toBe(0);
+    expect(entry.stdout).toBe('done');
+    expect(entry.stderr).toBe('');
   });
 });
